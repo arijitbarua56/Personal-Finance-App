@@ -1,0 +1,25 @@
+Money Tracker V4.1 — direct email/password sign-in
+
+Recommended Supabase setting for the smoothest iPhone Home Screen experience:
+Authentication > Sign In / Providers > Email
+- Email provider: ON
+- Confirm email: OFF (recommended for this private personal app)
+
+If Confirm email stays ON, account creation may require one confirmation link in Safari.
+After that, future sign-ins use email + password directly inside the PWA.
+
+Deployment:
+Replace these 6 GitHub files:
+index.html
+app.js
+manifest.webmanifest
+sw.js
+icon-192.png
+icon-512.png
+
+Migration:
+1. On the PHONE with latest data, open V4.1.
+2. Settings > Cloud sync > Create account (or Sign in if already created).
+3. If cloud is empty, the phone copy uploads automatically.
+4. On laptop, sign in with the same email/password.
+5. Use Download cloud if the laptop doesn't load it automatically.

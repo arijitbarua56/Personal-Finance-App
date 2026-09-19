@@ -176,6 +176,7 @@ function renderAuth(){
   if($('signedOutCloud')) $('signedOutCloud').classList.toggle('hide',signedIn);
   if($('signedInCloud')) $('signedInCloud').classList.toggle('hide',!signedIn);
   if(signedIn && $('userEmail')) $('userEmail').textContent=currentUser.email||'Signed-in user';
+  if(signedIn && $('authPassword')) $('authPassword').value='';
   if(!signedIn) setCloudUI(navigator.onLine?'warn':'off',navigator.onLine?'Not signed in':'Offline');
 }
 async function initCloud(){
@@ -460,6 +461,28 @@ $('clearBtn').addEventListener('click',()=>{
 });
 
 
+$('signInPasswordBtn').addEventListener('click',async()=>{
+  const email=$('authEmail').value.trim();
+  const password=$('authPassword').value;
+  if(!email||!password){$('authStatus').textContent='Enter your email and password.';return}
+  $('authStatus').textContent='Signing in…';
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  $('authStatus').textContent=error?('Sign-in failed: '+error.message):'Signed in.';
+});
+$('createAccountBtn').addEventListener('click',async()=>{
+  const email=$('authEmail').value.trim();
+  const password=$('authPassword').value;
+  if(!email||!password){$('authStatus').textContent='Enter your email and password.';return}
+  if(password.length<6){$('authStatus').textContent='Use a password with at least 6 characters.';return}
+  $('authStatus').textContent='Creating account…';
+  const {data,error}=await sb.auth.signUp({email,password});
+  if(error){$('authStatus').textContent='Could not create account: '+error.message;return}
+  if(data?.session){
+    $('authStatus').textContent='Account created and signed in.';
+  }else{
+    $('authStatus').textContent='Account created. If email confirmation is enabled in Supabase, confirm the email once, then use password sign-in.';
+  }
+});
 $('sendMagicLinkBtn').addEventListener('click',async()=>{
   const email=$('authEmail').value.trim();
   if(!email){$('authStatus').textContent='Enter your email.';return}

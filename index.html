@@ -232,9 +232,17 @@
       <div class="section card">
         <h2 class="section-title">Cloud sync</h2>
         <div id="signedOutCloud">
-          <div class="footer-note" style="margin:0 0 10px">Sign in with the same email on your phone and laptop to keep both devices synchronized.</div>
+          <div class="footer-note" style="margin:0 0 10px">Sign in directly inside the app with the same email and password on your phone and laptop.</div>
           <label>Email<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
-          <button id="sendMagicLinkBtn" type="button" class="btn">Email me a sign-in link</button>
+          <label>Password<input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters"></label>
+          <div class="actions">
+            <button id="signInPasswordBtn" type="button" class="btn">Sign in</button>
+            <button id="createAccountBtn" type="button" class="btn secondary">Create account</button>
+          </div>
+          <details style="margin-top:12px">
+            <summary class="sub" style="cursor:pointer">Use email sign-in link instead</summary>
+            <button id="sendMagicLinkBtn" type="button" class="btn secondary" style="margin-top:10px">Email me a sign-in link</button>
+          </details>
           <div id="authStatus" class="status"></div>
         </div>
         <div id="signedInCloud" class="hide">
