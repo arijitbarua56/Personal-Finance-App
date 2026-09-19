@@ -46,7 +46,7 @@
     .list-card{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #edf0f4}.list-card:last-child{border-bottom:0}.list-name{font-size:14px}.list-val{font-weight:700}
     .pill{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:12px;font-weight:700;background:#eef2ff;color:#3730a3}
     .summary{display:grid;grid-template-columns:1fr 1fr;gap:8px}.summary .card{padding:12px}
-    .bottom-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(760px,100%);background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:8px 8px calc(8px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(5,1fr);z-index:20}
+    .bottom-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(760px,100%);background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:8px 8px calc(8px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(6,1fr);z-index:20}
     .nav-btn{border:0;background:transparent;color:var(--muted);padding:8px 4px;border-radius:12px;font-size:11px;min-height:52px;font-weight:650}.nav-btn span{display:block;font-size:20px;line-height:20px;margin-bottom:4px}.nav-btn.active{color:var(--accent);background:var(--accent-soft)}
     .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.seg button{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:12px;padding:11px;font-weight:700}.seg button.active{background:var(--accent-soft);border-color:#93c5fd;color:#1d4ed8}
     .hide{display:none!important}
@@ -55,14 +55,23 @@
     .modal h3{margin:0 0 12px}
     .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:520px){.row,.settings-grid{grid-template-columns:1fr}.metric .value{font-size:20px}.quick{grid-template-columns:repeat(3,1fr)}}
-    @media(max-width:360px){.grid,.summary{grid-template-columns:1fr}.bottom-nav{grid-template-columns:repeat(5,1fr)}.nav-btn{font-size:10px}}
+    @media(max-width:360px){.grid,.summary{grid-template-columns:1fr}.bottom-nav{grid-template-columns:repeat(6,1fr)}.nav-btn{font-size:10px}}
+  
+    .plan-item{display:grid;grid-template-columns:92px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #edf0f4}
+    .plan-item:last-child{border-bottom:0}.plan-date{font-size:12px;color:var(--muted)}.plan-desc{font-size:14px;font-weight:650}.plan-kind{font-size:11px;color:var(--muted);margin-top:2px}.plan-amt{font-weight:750;white-space:nowrap}.plan-item button{border:0;background:transparent;text-align:left;padding:0;color:inherit}
+    .milestone{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #edf0f4}.milestone:last-child{border-bottom:0}.milestone-date{font-size:12px;color:var(--muted);min-width:72px}.milestone-text{font-size:13px;flex:1}
+    @media(max-width:420px){.plan-item{grid-template-columns:72px 1fr auto}.bottom-nav{grid-template-columns:repeat(6,1fr)}}
+
+  
+    .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px}
+    .pill.cloud-ok{background:#dcfce7;color:#166534}.pill.cloud-warn{background:#fef3c7;color:#92400e}.pill.cloud-off{background:#fee2e2;color:#991b1b}
   </style>
 </head>
 <body>
 <div class="app">
   <header>
     <div><h1>Money Tracker</h1><div class="sub">Fast personal finance tracking</div></div>
-    <button id="installBtn" class="btn secondary small hide">Install</button>
+    <div class="actions"><span id="cloudBadge" class="pill">Local only</span><button id="installBtn" class="btn secondary small hide">Install</button></div>
   </header>
 
   <main>
@@ -144,6 +153,41 @@
       </div>
     </section>
 
+
+    <section id="page-plan" class="page">
+      <div class="summary">
+        <div class="card"><div class="sub">Projected chequing</div><div id="planCheq" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
+        <div class="card"><div class="sub">Projected card debt</div><div id="planDebt" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
+      </div>
+
+      <div class="section card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <h2 class="section-title" style="margin:0">Future plan</h2>
+            <div class="sub" style="margin-top:3px">Editable — these are planned, not actual transactions.</div>
+          </div>
+          <button id="addPlanBtn" class="btn secondary small" type="button">+ Add</button>
+        </div>
+        <div id="planList" style="margin-top:10px"></div>
+      </div>
+
+      <div class="section card">
+        <h2 class="section-title">Milestones</h2>
+        <div id="milestones"></div>
+      </div>
+
+      <div class="section card">
+        <h2 class="section-title">Plan rules</h2>
+        <div class="guard">
+          <div>Oct 1 paycheck</div><div>Rent + essentials first</div>
+          <div>Mid-Oct dad transfer</div><div>Clear RBC + attack TD</div>
+          <div>Oct 29 paycheck</div><div>Reserve Nov 1 rent</div>
+          <div>Debt target</div><div>Keep TD ≤ $2,100, then push under $300</div>
+        </div>
+        <div class="footer-note">Projected balances use your current balances plus future plan items. Once something actually happens, record it in Transactions and mark/delete the matching planned item so it is not double-counted mentally.</div>
+      </div>
+    </section>
+
     <section id="page-budget" class="page">
       <div class="summary">
         <div class="card"><div class="sub">Variable targets</div><div id="budgetTargetTotal" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
@@ -184,6 +228,28 @@
         <div id="settingsStatus" class="status"></div>
       </div>
 
+
+      <div class="section card">
+        <h2 class="section-title">Cloud sync</h2>
+        <div id="signedOutCloud">
+          <div class="footer-note" style="margin:0 0 10px">Sign in with the same email on your phone and laptop to keep both devices synchronized.</div>
+          <label>Email<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <button id="sendMagicLinkBtn" type="button" class="btn">Email me a sign-in link</button>
+          <div id="authStatus" class="status"></div>
+        </div>
+        <div id="signedInCloud" class="hide">
+          <div class="list-card"><div><div class="list-name">Signed in</div><div id="userEmail" class="sub"></div></div><span id="syncStatus" class="pill">Checking…</span></div>
+          <div class="actions" style="margin-top:12px">
+            <button id="syncNowBtn" type="button" class="btn">Sync now</button>
+            <button id="uploadLocalBtn" type="button" class="btn secondary">Upload this device</button>
+            <button id="downloadCloudBtn" type="button" class="btn secondary">Download cloud</button>
+            <button id="signOutBtn" type="button" class="btn danger">Sign out</button>
+          </div>
+          <div class="footer-note"><strong>First setup:</strong> sign in on the phone that contains your latest data first. If the cloud is empty, V4 uploads that device automatically.</div>
+          <div id="cloudStatus" class="status"></div>
+        </div>
+      </div>
+
       <div class="section card">
         <h2 class="section-title">Backup & data</h2>
         <div class="actions">
@@ -201,6 +267,7 @@
 <nav class="bottom-nav" aria-label="Main navigation">
   <button class="nav-btn active" data-page="dashboard"><span>⌂</span>Home</button>
   <button class="nav-btn" data-page="add"><span>＋</span>Add</button>
+  <button class="nav-btn" data-page="plan"><span>◎</span>Plan</button>
   <button class="nav-btn" data-page="budget"><span>◫</span>Budget</button>
   <button class="nav-btn" data-page="history"><span>☷</span>History</button>
   <button class="nav-btn" data-page="settings"><span>⚙︎</span>Settings</button>
@@ -214,6 +281,33 @@
   </div>
 </div>
 
+
+<div id="planModal" class="modal-backdrop hide">
+  <div class="modal">
+    <h3 id="planModalTitle">Add planned item</h3>
+    <input id="editPlanId" type="hidden">
+    <div class="row">
+      <label>Date<input id="planDate" type="date"></label>
+      <label>Type<select id="planType">
+        <option value="income">Income / Paycheck</option>
+        <option value="expense">Expense / Reserve</option>
+        <option value="tdPayment">TD payment</option>
+        <option value="rbcPayment">RBC payment</option>
+        <option value="tdPurchase">TD planned purchase</option>
+        <option value="rbcPurchase">RBC planned purchase</option>
+      </select></label>
+    </div>
+    <label>Description<input id="planDesc" type="text" placeholder="Oct 15 paycheck"></label>
+    <label>Amount<input id="planAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+    <div class="actions">
+      <button id="savePlanBtn" class="btn" type="button">Save planned item</button>
+      <button id="deletePlanBtn" class="btn danger hide" type="button">Delete</button>
+      <button id="closePlanBtn" class="btn secondary" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
 </body>
 </html>
