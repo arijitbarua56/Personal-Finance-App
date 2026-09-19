@@ -22,7 +22,16 @@ const defaults={
   {id:"friend",name:"Friend Repayment",emoji:"🤝",budget:75,quick:false},
   {id:"other",name:"Other",emoji:"•",budget:0,quick:false}
  ],
- transactions:[]
+ transactions:[],
+ plan:[
+  {id:"plan-1",date:"2026-10-01",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:840},
+  {id:"plan-2",date:"2026-10-01",type:"expense",description:"October rent",accountId:"td-cheq",amount:600},
+  {id:"plan-3",date:"2026-10-15",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:840},
+  {id:"plan-4",date:"2026-10-15",type:"income",description:"Dad transfer",accountId:"td-cheq",amount:1000},
+  {id:"plan-5",date:"2026-10-15",type:"cardPayment",description:"TD credit card payment",fromAccountId:"td-cheq",toAccountId:"td-credit",amount:600},
+  {id:"plan-6",date:"2026-10-29",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:840},
+  {id:"plan-7",date:"2026-10-29",type:"expense",description:"Reserve November rent",accountId:"td-cheq",amount:600}
+ ]
 };
 
 let state=loadState();
@@ -37,7 +46,7 @@ function clone(x){return JSON.parse(JSON.stringify(x))}
 function migrateLegacy(raw){
  try{
   const s=JSON.parse(raw);
-  if(Array.isArray(s.accounts)) return s;
+  if(Array.isArray(s.accounts)){ if(!Array.isArray(s.plan)) s.plan=clone(defaults.plan); return s; }
   if(s.balances){
    const n=clone(defaults);
    n.accounts.find(a=>a.id==="td-cheq").balance=Number(s.balances.cheq||60);
@@ -62,14 +71,14 @@ function loadState(){
  for(const k of LEGACY_KEYS){const v=localStorage.getItem(k);if(v){const m=migrateLegacy(v);if(m){localStorage.setItem(STORAGE_KEY,JSON.stringify(m));return m}}}
  return clone(defaults);
 }
-function save(localOnly=false){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();if(!localOnly)scheduleSync()}
+function save(localOnly=false){if(!Array.isArray(state.plan))state.plan=clone(defaults.plan);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();if(!localOnly)scheduleSync()}
 function account(id){return state.accounts.find(a=>a.id===id)}
 function category(id){return state.categories.find(c=>c.id===id)}
 function spendFor(catId){const ym=today().slice(0,7);return state.transactions.filter(t=>t.categoryId===catId&&t.type==="spend"&&t.date.startsWith(ym)).reduce((s,t)=>s+Number(t.amount),0)}
 function totalMonthSpend(){return state.transactions.filter(t=>t.type==="spend"&&t.date.startsWith(today().slice(0,7))).reduce((s,t)=>s+Number(t.amount),0)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 
-function render(){renderAccounts();renderQuick();renderBudgets();renderHistory();renderRecent();renderChips();renderFilters();renderSettingsLists();renderPaymentSelects();renderAuth()}
+function render(){if(!Array.isArray(state.plan))state.plan=clone(defaults.plan);renderAccounts();renderQuick();renderBudgets();renderHistory();renderRecent();renderChips();renderFilters();renderSettingsLists();renderPaymentSelects();renderPlan();renderAuth()}
 function renderAccounts(){
  const wrap=$("homeAccounts");wrap.innerHTML="";
  state.accounts.forEach(a=>{
@@ -120,6 +129,79 @@ function renderSettingsLists(){
 function renderPaymentSelects(){const f=$("paymentFrom"),t=$("paymentTo");f.innerHTML="";t.innerHTML="";state.accounts.filter(a=>a.type!=="credit").forEach(a=>f.add(new Option(a.name,a.id)));state.accounts.filter(a=>a.type==="credit").forEach(a=>t.add(new Option(a.name,a.id)))}
 function renderAuth(){$("signedOut").classList.toggle("hide",!!user);$("signedIn").classList.toggle("hide",!user);if(user)$("signedEmail").textContent=user.email||""}
 
+
+function projectedPlan(){
+ const balances={};
+ state.accounts.forEach(a=>balances[a.id]=Number(a.balance)||0);
+ const items=(state.plan||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+ items.forEach(p=>{
+  const amt=Number(p.amount)||0;
+  if(p.type==="income"&&balances[p.accountId]!=null) balances[p.accountId]+=amt;
+  else if(p.type==="expense"&&balances[p.accountId]!=null) balances[p.accountId]-=amt;
+  else if(p.type==="cardPayment"){
+   if(balances[p.fromAccountId]!=null) balances[p.fromAccountId]-=amt;
+   if(balances[p.toAccountId]!=null) balances[p.toAccountId]-=amt;
+  }
+ });
+ let cash=0,debt=0;
+ state.accounts.forEach(a=>{
+  const b=balances[a.id]??0;
+  if(a.type==="credit") debt+=Math.max(0,b);
+  else if(["chequing","savings","cash"].includes(a.type)) cash+=b;
+ });
+ return {cash,debt,balances};
+}
+function renderPlan(){
+ if(!$("planList")) return;
+ const proj=projectedPlan();
+ $("planCash").textContent=money(proj.cash);
+ $("planCash").className="account-value "+(proj.cash<100?"bad":proj.cash<300?"warn":"gold");
+ $("planDebt").textContent=money(proj.debt);
+ $("planDebt").className="account-value "+(proj.debt>0?"bad":"good");
+ const wrap=$("planList");wrap.innerHTML="";
+ const arr=(state.plan||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+ if(!arr.length){wrap.innerHTML='<div class="empty">No planned items yet.</div>';return}
+ arr.forEach(p=>{
+  const r=document.createElement("div");r.className="plan-row";
+  let meta=p.type==="income"?"Income":p.type==="expense"?"Expense":"Card payment";
+  let target="";
+  if(p.type==="cardPayment") target=(account(p.fromAccountId)?.name||"Account")+" → "+(account(p.toAccountId)?.name||"Card");
+  else target=account(p.accountId)?.name||"Account";
+  r.innerHTML='<div class="plan-date">'+esc(p.date)+'</div><button type="button"><div class="list-title">'+esc(p.description)+'</div><div class="plan-kind">'+esc(meta)+' · '+esc(target)+'</div></button><div class="amount '+(p.type==="income"?"good":"")+'">'+(p.type==="income"?"+":"−")+money(p.amount)+'</div>';
+  r.querySelector("button").onclick=()=>openPlan(p.id);
+  wrap.appendChild(r);
+ });
+}
+function fillPlanAccountSelects(){
+ const a=$("planAccount"),f=$("planPayFrom"),t=$("planPayTo");
+ if(!a||!f||!t)return;
+ a.innerHTML="";f.innerHTML="";t.innerHTML="";
+ state.accounts.forEach(x=>a.add(new Option(x.name,x.id)));
+ state.accounts.filter(x=>x.type!=="credit").forEach(x=>f.add(new Option(x.name,x.id)));
+ state.accounts.filter(x=>x.type==="credit").forEach(x=>t.add(new Option(x.name,x.id)));
+}
+function setPlanTypeUI(){
+ const isPay=$("planType").value==="cardPayment";
+ $("planAccountWrap").classList.toggle("hide",isPay);
+ $("planPaymentWrap").classList.toggle("hide",!isPay);
+}
+function openPlan(id=""){
+ fillPlanAccountSelects();
+ const p=(state.plan||[]).find(x=>x.id===id);
+ $("editPlanId").value=p?.id||"";
+ $("planModalTitle").textContent=p?"Edit planned item":"Add planned item";
+ $("planDate").value=p?.date||today();
+ $("planType").value=p?.type||"expense";
+ $("planDesc").value=p?.description||"";
+ $("planAmount").value=p?.amount??"";
+ if(p?.accountId)$("planAccount").value=p.accountId;
+ if(p?.fromAccountId)$("planPayFrom").value=p.fromAccountId;
+ if(p?.toAccountId)$("planPayTo").value=p.toAccountId;
+ $("deletePlanBtn").classList.toggle("hide",!p);
+ setPlanTypeUI();
+ $("planModal").classList.remove("hide");
+}
+
 function applyTransaction(t,dir=1){const a=account(t.accountId);if(!a)return;const n=Number(t.amount)*dir;if(t.type==="spend")a.balance+=a.type==="credit"?n:-n;else if(t.type==="income")a.balance+=n;else if(t.type==="credit")a.balance+=a.type==="credit"?-n:n}
 function addTransaction(t){applyTransaction(t);state.transactions.push(t);save()}
 function showPage(p){document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+p));document.querySelectorAll(".nav-btn").forEach(x=>x.classList.toggle("active",x.dataset.page===p));window.scrollTo(0,0)}
@@ -140,12 +222,30 @@ $("addCategoryBtn").onclick=()=>openCategory();$("manageCatsBtn").onclick=()=>sh
 $("saveCategoryBtn").onclick=()=>{const name=$("categoryName").value.trim();if(!name)return;const id=$("editCategoryId").value;const data={name,emoji:$("categoryEmoji").value.trim(),budget:Number($("categoryBudget").value)||0,quick:$("categoryQuick").checked};if(id)Object.assign(category(id),data);else state.categories.push({id:uid(),...data});save();$("categoryModal").classList.add("hide")};
 $("deleteCategoryBtn").onclick=()=>{const id=$("editCategoryId").value;if(!id)return;if(!confirm("Delete this category?"))return;state.categories=state.categories.filter(c=>c.id!==id);save();$("categoryModal").classList.add("hide")};
 document.querySelectorAll(".close-modal").forEach(b=>b.onclick=()=>b.closest(".modal-bg").classList.add("hide"));
+
+$("addPlanBtn").onclick=()=>openPlan();
+$("planType").onchange=setPlanTypeUI;
+$("savePlanBtn").onclick=()=>{
+ const amount=Number($("planAmount").value),description=$("planDesc").value.trim(),date=$("planDate").value;
+ if(!amount||amount<=0||!description||!date)return;
+ const type=$("planType").value,id=$("editPlanId").value;
+ const item={id:id||uid(),date,type,description,amount};
+ if(type==="cardPayment"){item.fromAccountId=$("planPayFrom").value;item.toAccountId=$("planPayTo").value}
+ else item.accountId=$("planAccount").value;
+ if(id){const i=state.plan.findIndex(x=>x.id===id);if(i>=0)state.plan[i]=item}else state.plan.push(item);
+ save();$("planModal").classList.add("hide");
+};
+$("deletePlanBtn").onclick=()=>{
+ const id=$("editPlanId").value;if(!id)return;if(!confirm("Delete this planned item?"))return;
+ state.plan=state.plan.filter(x=>x.id!==id);save();$("planModal").classList.add("hide");
+};
+
 $("filterAccount").onchange=renderHistory;$("filterCategory").onchange=renderHistory;
 
 function cloudBadge(kind,text){const b=$("cloudBadge");b.className="badge "+kind;b.textContent=text}
 function scheduleSync(){if(!user||!cloudReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(uploadCloud,600)}
 async function uploadCloud(){if(!user||syncing)return;syncing=true;cloudBadge("warn","Syncing…");try{const {error}=await sb.from("finance_state").upsert({user_id:user.id,data:state,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)throw error;cloudBadge("ok","Synced");$("syncText").textContent="Synced"}catch(e){cloudBadge("off","Sync error");$("cloudMsg").textContent=e.message}finally{syncing=false}}
-async function loadCloud(){if(!user)return;const {data,error}=await sb.from("finance_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;if(data?.data&&Array.isArray(data.data.accounts)){state={...clone(defaults),...data.data,accounts:data.data.accounts,categories:Array.isArray(data.data.categories)?data.data.categories:clone(defaults.categories),transactions:Array.isArray(data.data.transactions)?data.data.transactions:[]};localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}else await uploadCloud();cloudReady=true;render();cloudBadge("ok","Synced")}
+async function loadCloud(){if(!user)return;const {data,error}=await sb.from("finance_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;if(data?.data&&Array.isArray(data.data.accounts)){state={...clone(defaults),...data.data,accounts:data.data.accounts,categories:Array.isArray(data.data.categories)?data.data.categories:clone(defaults.categories),transactions:Array.isArray(data.data.transactions)?data.data.transactions:[],plan:Array.isArray(data.data.plan)?data.data.plan:clone(defaults.plan)};localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}else await uploadCloud();cloudReady=true;render();cloudBadge("ok","Synced")}
 async function initAuth(){const {data:{session}}=await sb.auth.getSession();user=session?.user||null;renderAuth();if(user)await loadCloud();else cloudBadge("warn","Not signed in");sb.auth.onAuthStateChange(async(_,session)=>{user=session?.user||null;cloudReady=false;renderAuth();if(user)await loadCloud();else cloudBadge("warn","Not signed in")})}
 $("signInBtn").onclick=async()=>{const email=$("authEmail").value.trim(),password=$("authPassword").value;const {error}=await sb.auth.signInWithPassword({email,password});$("cloudMsg").textContent=error?error.message:"Signed in."};
 $("signUpBtn").onclick=async()=>{const email=$("authEmail").value.trim(),password=$("authPassword").value;if(password.length<6)return $("cloudMsg").textContent="Use at least 6 characters.";const {error}=await sb.auth.signUp({email,password});$("cloudMsg").textContent=error?error.message:"Account created."};
@@ -154,7 +254,7 @@ window.addEventListener("focus",()=>{if(user)loadCloud().catch(()=>{})});documen
 
 $("exportBtn").onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="money-tracker-v5-backup.json";a.click()};
 $("importBtn").onclick=()=>$("importFile").click();
-$("importFile").onchange=async e=>{try{const x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.accounts)||!Array.isArray(x.categories))throw 0;state=x;save()}catch(err){alert("Invalid backup")}e.target.value=""};
+$("importFile").onchange=async e=>{try{const x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.accounts)||!Array.isArray(x.categories))throw 0;if(!Array.isArray(x.plan))x.plan=clone(defaults.plan);state=x;save()}catch(err){alert("Invalid backup")}e.target.value=""};
 
 if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js");
 render();initAuth();
