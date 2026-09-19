@@ -1,321 +1,83 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Money Tracker" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <title>Money Tracker</title>
-  <style>
-    :root{
-      --bg:#f6f7fb;--card:#fff;--text:#111827;--muted:#6b7280;--border:#d7dbe3;
-      --accent:#2563eb;--accent-soft:#dbeafe;--good:#15803d;--warn:#b45309;--bad:#b91c1c;
-      --nav:#ffffff;--shadow:0 1px 2px rgba(15,23,42,.04)
-    }
-    *{box-sizing:border-box}
-    html{background:var(--bg)}
-    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
-    button,input,select{font:inherit}
-    button{cursor:pointer}
-    .app{max-width:760px;margin:0 auto;min-height:100vh;padding:env(safe-area-inset-top) 14px calc(92px + env(safe-area-inset-bottom))}
-    header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0 12px}
-    h1{font-size:26px;margin:0;letter-spacing:-.03em}.sub{font-size:13px;color:var(--muted);margin-top:2px}
-    .page{display:none}.page.active{display:block}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;box-shadow:var(--shadow)}
-    .metric .label{font-size:12px;color:var(--muted)}.metric .value{font-size:22px;font-weight:750;margin-top:4px}
-    .section{margin-top:12px}.section-title{font-size:16px;font-weight:700;margin:0 0 10px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    label{display:block;font-size:13px;margin-bottom:10px}
-    input,select{width:100%;border:1px solid var(--border);background:#fff;border-radius:12px;padding:12px;color:var(--text);min-height:46px}
-    .btn{border:0;border-radius:13px;padding:12px 14px;background:var(--accent);color:#fff;font-weight:700;min-height:46px}
-    .btn.secondary{background:#fff;color:var(--text);border:1px solid var(--border)}
-    .btn.danger{background:#fff;color:var(--bad);border:1px solid #fecaca}
-    .btn.small{min-height:38px;padding:8px 11px;font-size:13px}
-    .actions{display:flex;gap:8px;flex-wrap:wrap}
-    .status{font-size:13px;color:var(--muted);min-height:18px;margin-top:6px}
-    .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.quick .btn{font-size:13px;padding:10px 8px}
-    .guard{display:grid;grid-template-columns:1fr auto;gap:7px 10px;font-size:14px}.footer-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4}
-    .good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-    .budget{margin:14px 0}.budget-head{display:flex;justify-content:space-between;gap:8px;font-size:14px}.bar{height:9px;border-radius:99px;background:#e5e7eb;overflow:hidden;margin-top:6px}.fill{height:100%;background:var(--accent)}.smalltxt{font-size:12px;color:var(--muted);margin-top:4px}
-    .tx{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #edf0f4}.tx:last-child{border-bottom:0}.tx-main{min-width:0}.tx-title{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tx-meta{font-size:12px;color:var(--muted);margin-top:3px}.amount{font-weight:750;white-space:nowrap}
-    .list-card{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #edf0f4}.list-card:last-child{border-bottom:0}.list-name{font-size:14px}.list-val{font-weight:700}
-    .pill{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:12px;font-weight:700;background:#eef2ff;color:#3730a3}
-    .summary{display:grid;grid-template-columns:1fr 1fr;gap:8px}.summary .card{padding:12px}
-    .bottom-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(760px,100%);background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:8px 8px calc(8px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(6,1fr);z-index:20}
-    .nav-btn{border:0;background:transparent;color:var(--muted);padding:8px 4px;border-radius:12px;font-size:11px;min-height:52px;font-weight:650}.nav-btn span{display:block;font-size:20px;line-height:20px;margin-bottom:4px}.nav-btn.active{color:var(--accent);background:var(--accent-soft)}
-    .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.seg button{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:12px;padding:11px;font-weight:700}.seg button.active{background:var(--accent-soft);border-color:#93c5fd;color:#1d4ed8}
-    .hide{display:none!important}
-    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.4);display:flex;align-items:flex-end;justify-content:center;z-index:50;padding:12px}
-    .modal{width:min(720px,100%);background:#fff;border-radius:20px;padding:16px;max-height:85vh;overflow:auto}
-    .modal h3{margin:0 0 12px}
-    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media(max-width:520px){.row,.settings-grid{grid-template-columns:1fr}.metric .value{font-size:20px}.quick{grid-template-columns:repeat(3,1fr)}}
-    @media(max-width:360px){.grid,.summary{grid-template-columns:1fr}.bottom-nav{grid-template-columns:repeat(6,1fr)}.nav-btn{font-size:10px}}
-  
-    .plan-item{display:grid;grid-template-columns:92px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #edf0f4}
-    .plan-item:last-child{border-bottom:0}.plan-date{font-size:12px;color:var(--muted)}.plan-desc{font-size:14px;font-weight:650}.plan-kind{font-size:11px;color:var(--muted);margin-top:2px}.plan-amt{font-weight:750;white-space:nowrap}.plan-item button{border:0;background:transparent;text-align:left;padding:0;color:inherit}
-    .milestone{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #edf0f4}.milestone:last-child{border-bottom:0}.milestone-date{font-size:12px;color:var(--muted);min-width:72px}.milestone-text{font-size:13px;flex:1}
-    @media(max-width:420px){.plan-item{grid-template-columns:72px 1fr auto}.bottom-nav{grid-template-columns:repeat(6,1fr)}}
-
-  
-    .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px}
-    .pill.cloud-ok{background:#dcfce7;color:#166534}.pill.cloud-warn{background:#fef3c7;color:#92400e}.pill.cloud-off{background:#fee2e2;color:#991b1b}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Money Tracker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Money Tracker</title>
+<style>
+:root{--bg:#090909;--panel:#111;--text:#f5f5f5;--muted:#999;--line:#292929;--gold:#d4af37;--gold2:#f1d36b;--good:#59c77a;--bad:#ff6b6b;--warn:#f0b84b}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}
+.app{max-width:760px;margin:auto;padding:calc(14px + env(safe-area-inset-top)) 14px calc(92px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+h1{margin:0;font-size:28px;letter-spacing:-.04em}.sub{color:var(--muted);font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#1b1b1b;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.badge.ok{color:#b9f5c7}.badge.warn{color:#ffe099}.badge.off{color:#ffb3b3}.page{display:none}.page.active{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:15px}.section{margin-top:12px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.section-title{font-size:16px;font-weight:750}
+.account-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.account-card{background:linear-gradient(180deg,#151515,#101010);border:1px solid var(--line);border-radius:16px;padding:14px}.account-name{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.account-value{font-size:21px;font-weight:800;margin-top:5px}.account-type{font-size:11px;color:#777;margin-top:4px}.gold{color:var(--gold2)}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.btn{border:0;border-radius:13px;padding:12px 14px;min-height:46px;font-weight:750;background:var(--gold);color:#0a0a0a}.btn.secondary{background:#171717;color:var(--text);border:1px solid var(--line)}.btn.danger{background:#1b1111;color:#ff9f9f;border:1px solid #4a2222}.btn.small{min-height:38px;padding:8px 11px;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}
+.quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.quick-btn{border:1px solid var(--line);background:#151515;color:var(--text);border-radius:14px;padding:12px 8px;font-weight:700;min-height:54px}.quick-btn span{display:block;font-size:11px;color:var(--muted);margin-top:3px;font-weight:500}
+label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{width:100%;background:#0e0e0e;color:var(--text);border:1px solid var(--line);border-radius:13px;padding:12px;min-height:46px}input:focus,select:focus{outline:2px solid rgba(212,175,55,.35);border-color:var(--gold)}
+.amount-hero{font-size:34px;font-weight:800;background:#0e0e0e;border:1px solid var(--line);border-radius:16px;padding:12px 14px;color:var(--text);width:100%}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.chips{display:flex;gap:7px;overflow:auto;padding-bottom:3px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}.chip{flex:0 0 auto;border:1px solid var(--line);background:#151515;color:#ddd;border-radius:999px;padding:9px 12px;font-size:12px}.chip.active{background:var(--gold);color:#0a0a0a;border-color:var(--gold)}
+.list-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #222}.list-row:last-child{border-bottom:0}.list-main{min-width:0}.list-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.list-meta{font-size:11px;color:var(--muted);margin-top:3px}.amount{font-weight:800;white-space:nowrap}
+.bar{height:8px;border-radius:999px;background:#242424;overflow:hidden;margin-top:6px}.fill{height:100%;background:var(--gold)}
+.bottom-nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(760px,100%);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(8,8,8,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:7px 7px calc(7px + env(safe-area-inset-bottom));z-index:30}
+.nav-btn{border:0;background:transparent;color:#777;border-radius:11px;padding:7px 3px;min-height:52px;font-size:10px;font-weight:700}.nav-btn b{display:block;font-size:20px;line-height:20px;margin-bottom:4px}.nav-btn.active{color:var(--gold2);background:#17140c}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;align-items:flex-end;padding:10px}.modal{width:min(720px,100%);margin:auto;background:#111;border:1px solid var(--line);border-radius:22px;padding:16px;max-height:86vh;overflow:auto}.hide{display:none!important}.status{min-height:18px;font-size:12px;color:var(--muted);margin-top:8px}.empty{color:var(--muted);font-size:13px;padding:8px 0}
+@media(max-width:480px){.row{grid-template-columns:1fr}.account-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:350px){.account-grid{grid-template-columns:1fr}.quick-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
 </head>
 <body>
 <div class="app">
-  <header>
-    <div><h1>Money Tracker</h1><div class="sub">Fast personal finance tracking</div></div>
-    <div class="actions"><span id="cloudBadge" class="pill">Local only</span><button id="installBtn" class="btn secondary small hide">Install</button></div>
-  </header>
+<header><div><h1>Money Tracker</h1><div class="sub">V5 · flexible accounts, categories & cloud sync</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
+<main>
+<section id="page-home" class="page active">
+ <div class="section-head"><div class="section-title">Accounts</div><button id="homeManageAccounts" class="btn secondary small">Manage</button></div>
+ <div id="homeAccounts" class="account-grid"></div>
+ <div class="section card"><div class="section-head"><div class="section-title">Quick add</div><button id="editQuickBtn" class="btn secondary small">Edit</button></div><div id="quickActions" class="quick-grid"></div></div>
+ <div class="section card"><div class="section-head"><div class="section-title">This month</div><span id="monthSpend" class="gold" style="font-weight:800"></span></div><div id="homeBudgets"></div></div>
+ <div class="section card"><div class="section-head"><div class="section-title">Recent</div><button class="btn secondary small go-history">See all</button></div><div id="recentTx"></div></div>
+</section>
 
-  <main>
-    <section id="page-dashboard" class="page active">
-      <div class="grid">
-        <div class="card metric"><div class="label">Chequing</div><div id="cheqBal" class="value">$60.00</div></div>
-        <div class="card metric"><div class="label">TD Visa</div><div id="tdBal" class="value">$1,869.00</div></div>
-        <div class="card metric"><div class="label">RBC Visa</div><div id="rbcBal" class="value">$0.00</div></div>
-        <div class="card metric"><div class="label">Total Card Debt</div><div id="debtBal" class="value">$1,869.00</div></div>
-      </div>
+<section id="page-add" class="page">
+ <div class="card"><div class="section-title" style="margin-bottom:12px">Add transaction</div>
+ <input id="txAmount" class="amount-hero" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="$0.00">
+ <div style="height:12px"></div><div class="sub" style="margin-bottom:6px">Account</div><div id="accountChips" class="chips"></div>
+ <div style="height:12px"></div><div class="sub" style="margin-bottom:6px">Category</div><div id="categoryChips" class="chips"></div>
+ <div style="height:12px"></div><div class="row"><label>Type<select id="txType"><option value="spend">Expense</option><option value="income">Income</option><option value="payment">Credit / refund</option></select></label><label>Date<input id="txDate" type="date"></label></div>
+ <label>Note (optional)<input id="txNote" type="text" placeholder="Taxi to work"></label>
+ <div class="actions"><button id="saveTxBtn" class="btn">Save</button><button id="cardPaymentBtn" class="btn secondary">Pay a card</button></div><div id="txStatus" class="status"></div></div>
+</section>
 
-      <div class="section card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <h2 class="section-title" style="margin:0">Quick add</h2><span class="pill">Today</span>
-        </div>
-        <div class="quick" style="margin-top:10px">
-          <button class="btn secondary quick-add" data-cat="Transportation" data-desc="Taxi">🚕 Taxi</button>
-          <button class="btn secondary quick-add" data-cat="Groceries" data-desc="Groceries">🛒 Grocery</button>
-          <button class="btn secondary quick-add" data-cat="Eating Out" data-desc="Eating out">🍔 Food</button>
-        </div>
-      </div>
+<section id="page-budget" class="page"><div class="card"><div class="section-head"><div class="section-title">Monthly budgets</div><button id="manageCatsBtn" class="btn secondary small">Manage categories</button></div><div id="budgetList"></div></div></section>
 
-      <div class="section card">
-        <h2 class="section-title">Debt guardrails</h2>
-        <div class="guard">
-          <div>TD ideal target</div><div>$2,000</div>
-          <div>TD hard limit</div><div>$2,100</div>
-          <div>Chequing minimum</div><div>$100</div>
-          <div>Preferred cash buffer</div><div>$200</div>
-        </div>
-        <div id="guardStatus" class="footer-note"></div>
-      </div>
+<section id="page-history" class="page"><div class="card"><div class="row"><label>Account<select id="filterAccount"></select></label><label>Category<select id="filterCategory"></select></label></div><div id="historyList"></div></div></section>
 
-      <div class="section card">
-        <h2 class="section-title">This month</h2>
-        <div id="dashboardBudgets"></div>
-      </div>
+<section id="page-settings" class="page">
+ <div class="card"><div class="section-head"><div class="section-title">Accounts</div><button id="addAccountBtn" class="btn small">+ Account</button></div><div id="settingsAccounts"></div></div>
+ <div class="section card"><div class="section-head"><div class="section-title">Categories</div><button id="addCategoryBtn" class="btn small">+ Category</button></div><div id="settingsCategories"></div></div>
+ <div class="section card"><div class="section-head"><div class="section-title">Cloud sync</div><span class="badge gold">Supabase</span></div>
+  <div id="signedOut"><label>Email<input id="authEmail" type="email" autocomplete="email"></label><label>Password<input id="authPassword" type="password" autocomplete="current-password"></label><div class="actions"><button id="signInBtn" class="btn">Sign in</button><button id="signUpBtn" class="btn secondary">Create account</button></div></div>
+  <div id="signedIn" class="hide"><div class="list-row"><div><div class="list-title">Signed in</div><div id="signedEmail" class="list-meta"></div></div><span id="syncText" class="badge ok">Synced</span></div><div class="actions" style="margin-top:10px"><button id="syncBtn" class="btn">Sync now</button><button id="signOutBtn" class="btn secondary">Sign out</button></div></div><div id="cloudMsg" class="status"></div>
+ </div>
+ <div class="section card"><div class="section-title" style="margin-bottom:10px">Backup</div><div class="actions"><button id="exportBtn" class="btn secondary">Export JSON</button><button id="importBtn" class="btn secondary">Import JSON</button><input id="importFile" type="file" accept="application/json" class="hide"></div></div>
+</section>
+</main></div>
 
-      <div class="section card">
-        <h2 class="section-title">Recent activity</h2>
-        <div id="dashboardTx"></div>
-      </div>
-    </section>
+<nav class="bottom-nav"><button class="nav-btn active" data-page="home"><b>⌂</b>Home</button><button class="nav-btn" data-page="add"><b>＋</b>Add</button><button class="nav-btn" data-page="budget"><b>◫</b>Budget</button><button class="nav-btn" data-page="history"><b>☷</b>History</button><button class="nav-btn" data-page="settings"><b>⚙︎</b>Settings</button></nav>
 
-    <section id="page-add" class="page">
-      <div class="card">
-        <div class="seg">
-          <button id="modePurchase" class="active" type="button">Purchase / Income</button>
-          <button id="modePayment" type="button">Pay a card</button>
-        </div>
+<div id="accountModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="accountModalTitle">Add account</div><input id="editAccountId" type="hidden"><label>Name<input id="accountName" type="text" placeholder="RBC Chequing"></label><label>Type<select id="accountType"><option value="chequing">Chequing</option><option value="savings">Savings</option><option value="credit">Credit card</option><option value="investment">Investment</option><option value="cash">Cash</option></select></label><label>Current balance<input id="accountBalance" type="number" step="0.01"></label><div class="actions"><button id="saveAccountBtn" class="btn">Save</button><button id="deleteAccountBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
 
-        <form id="txForm">
-          <div id="normalFields">
-            <div class="row">
-              <label>Date<input id="date" type="date" required></label>
-              <label>Account<select id="account"><option>Chequing</option><option>TD Credit Card</option><option>RBC Credit Card</option></select></label>
-            </div>
-            <div class="row">
-              <label>Category<select id="category"></select></label>
-              <label>Type<select id="type"><option value="spend">Purchase / Spend</option><option value="income">Income / Deposit</option><option value="payment">Payment / Credit</option></select></label>
-            </div>
-          </div>
+<div id="categoryModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="categoryModalTitle">Add category</div><input id="editCategoryId" type="hidden"><label>Name<input id="categoryName" type="text" placeholder="Coffee"></label><label>Emoji<input id="categoryEmoji" type="text" maxlength="4" placeholder="☕"></label><label>Monthly target<input id="categoryBudget" type="number" min="0" step="0.01" placeholder="0"></label><label><input id="categoryQuick" type="checkbox" style="width:auto;min-height:auto;margin-right:8px">Show on Home quick add</label><div class="actions"><button id="saveCategoryBtn" class="btn">Save</button><button id="deleteCategoryBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
 
-          <div id="paymentFields" class="hide">
-            <div class="row">
-              <label>Date<input id="paymentDate" type="date"></label>
-              <label>Card<select id="paymentCard"><option>TD Credit Card</option><option>RBC Credit Card</option></select></label>
-            </div>
-            <div class="footer-note" style="margin-bottom:10px">This automatically reduces the selected card and your chequing balance in one entry.</div>
-          </div>
+<div id="paymentModal" class="modal-bg hide"><div class="modal"><div class="section-title">Pay a credit card</div><label>From account<select id="paymentFrom"></select></label><label>Credit card<select id="paymentTo"></select></label><label>Amount<input id="paymentAmount" type="number" min="0.01" step="0.01"></label><label>Date<input id="paymentDate" type="date"></label><div class="actions"><button id="savePaymentBtn" class="btn">Save payment</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
 
-          <div class="row">
-            <label>Amount<input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></label>
-            <label>Description<input id="desc" type="text" placeholder="Taxi to work"></label>
-          </div>
-          <div class="actions"><button class="btn" type="submit">Save transaction</button><button class="btn secondary" type="button" id="undoBtn">Undo last</button></div>
-          <div id="status" class="status"></div>
-        </form>
-      </div>
-    </section>
-
-
-    <section id="page-plan" class="page">
-      <div class="summary">
-        <div class="card"><div class="sub">Projected chequing</div><div id="planCheq" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
-        <div class="card"><div class="sub">Projected card debt</div><div id="planDebt" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
-      </div>
-
-      <div class="section card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div>
-            <h2 class="section-title" style="margin:0">Future plan</h2>
-            <div class="sub" style="margin-top:3px">Editable — these are planned, not actual transactions.</div>
-          </div>
-          <button id="addPlanBtn" class="btn secondary small" type="button">+ Add</button>
-        </div>
-        <div id="planList" style="margin-top:10px"></div>
-      </div>
-
-      <div class="section card">
-        <h2 class="section-title">Milestones</h2>
-        <div id="milestones"></div>
-      </div>
-
-      <div class="section card">
-        <h2 class="section-title">Plan rules</h2>
-        <div class="guard">
-          <div>Oct 1 paycheck</div><div>Rent + essentials first</div>
-          <div>Mid-Oct dad transfer</div><div>Clear RBC + attack TD</div>
-          <div>Oct 29 paycheck</div><div>Reserve Nov 1 rent</div>
-          <div>Debt target</div><div>Keep TD ≤ $2,100, then push under $300</div>
-        </div>
-        <div class="footer-note">Projected balances use your current balances plus future plan items. Once something actually happens, record it in Transactions and mark/delete the matching planned item so it is not double-counted mentally.</div>
-      </div>
-    </section>
-
-    <section id="page-budget" class="page">
-      <div class="summary">
-        <div class="card"><div class="sub">Variable targets</div><div id="budgetTargetTotal" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
-        <div class="card"><div class="sub">Spent this month</div><div id="budgetSpentTotal" class="value" style="font-weight:750;margin-top:4px">$0.00</div></div>
-      </div>
-      <div class="section card">
-        <h2 class="section-title">Monthly spending targets</h2>
-        <div id="budgets"></div>
-      </div>
-      <div class="section card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 class="section-title" style="margin:0">Fixed monthly costs</h2><button id="editBudgetBtn" class="btn secondary small" type="button">Edit</button></div>
-        <div id="fixedCosts" style="margin-top:8px"></div>
-      </div>
-    </section>
-
-    <section id="page-history" class="page">
-      <div class="card">
-        <div class="row">
-          <label>Filter account<select id="historyAccount"><option value="">All accounts</option><option>Chequing</option><option>TD Credit Card</option><option>RBC Credit Card</option></select></label>
-          <label>Filter category<select id="historyCategory"><option value="">All categories</option></select></label>
-        </div>
-        <div id="txList"></div>
-      </div>
-    </section>
-
-    <section id="page-settings" class="page">
-      <div class="card">
-        <h2 class="section-title">Balances & limits</h2>
-        <div class="settings-grid">
-          <label>Chequing balance<input id="setCheq" type="number" step="0.01"></label>
-          <label>TD balance<input id="setTd" type="number" step="0.01"></label>
-          <label>RBC balance<input id="setRbc" type="number" step="0.01"></label>
-          <label>TD ideal target<input id="setTdIdeal" type="number" step="0.01"></label>
-          <label>TD hard limit<input id="setTdHard" type="number" step="0.01"></label>
-          <label>Chequing minimum<input id="setCheqMin" type="number" step="0.01"></label>
-        </div>
-        <button id="saveSettingsBtn" class="btn" type="button">Save settings</button>
-        <div id="settingsStatus" class="status"></div>
-      </div>
-
-
-      <div class="section card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 class="section-title" style="margin:0">Cloud sync</h2><span class="pill">V4.3</span></div>
-        <div id="signedOutCloud">
-          <div class="footer-note" style="margin:0 0 10px">Sign in directly inside the app with the same email and password on your phone and laptop.</div>
-          <label>Email<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
-          <label>Password<input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters"></label>
-          <div class="actions">
-            <button id="signInPasswordBtn" type="button" class="btn">Sign in</button>
-            <button id="createAccountBtn" type="button" class="btn secondary">Create account</button>
-          </div>
-          <details style="margin-top:12px">
-            <summary class="sub" style="cursor:pointer">Use email sign-in link instead</summary>
-            <button id="sendMagicLinkBtn" type="button" class="btn secondary" style="margin-top:10px">Email me a sign-in link</button>
-          </details>
-          <div id="authStatus" class="status"></div>
-        </div>
-        <div id="signedInCloud" class="hide">
-          <div class="list-card"><div><div class="list-name">Signed in</div><div id="userEmail" class="sub"></div></div><span id="syncStatus" class="pill">Checking…</span></div>
-          <div class="actions" style="margin-top:12px">
-            <button id="syncNowBtn" type="button" class="btn">Sync now</button>
-            <button id="uploadLocalBtn" type="button" class="btn secondary">Upload this device</button>
-            <button id="downloadCloudBtn" type="button" class="btn secondary">Download cloud</button>
-            <button id="signOutBtn" type="button" class="btn danger">Sign out</button>
-          </div>
-          <div class="footer-note"><strong>First setup:</strong> because V4.3 uses a fresh local profile, sign in on the device you want to use as the starting copy first. If the cloud is empty, that device uploads automatically. Other devices download the cloud copy when they sign in.</div>
-          <div id="cloudStatus" class="status"></div>
-        </div>
-      </div>
-
-      <div class="section card">
-        <h2 class="section-title">Backup & data</h2>
-        <div class="actions">
-          <button id="exportBtn" type="button" class="btn secondary">Export backup</button>
-          <input id="importInput" type="file" accept="application/json" class="hide">
-          <button id="importBtn" type="button" class="btn secondary">Import backup</button>
-          <button id="clearBtn" type="button" class="btn danger">Reset app</button>
-        </div>
-        <div class="footer-note">Your data stays in this browser on this device unless you export a backup.</div>
-      </div>
-    </section>
-  </main>
-</div>
-
-<nav class="bottom-nav" aria-label="Main navigation">
-  <button class="nav-btn active" data-page="dashboard"><span>⌂</span>Home</button>
-  <button class="nav-btn" data-page="add"><span>＋</span>Add</button>
-  <button class="nav-btn" data-page="plan"><span>◎</span>Plan</button>
-  <button class="nav-btn" data-page="budget"><span>◫</span>Budget</button>
-  <button class="nav-btn" data-page="history"><span>☷</span>History</button>
-  <button class="nav-btn" data-page="settings"><span>⚙︎</span>Settings</button>
-</nav>
-
-<div id="budgetModal" class="modal-backdrop hide">
-  <div class="modal">
-    <h3>Edit monthly amounts</h3>
-    <div id="budgetEditor"></div>
-    <div class="actions" style="margin-top:12px"><button id="saveBudgetBtn" class="btn">Save</button><button id="closeBudgetBtn" class="btn secondary">Cancel</button></div>
-  </div>
-</div>
-
-
-<div id="planModal" class="modal-backdrop hide">
-  <div class="modal">
-    <h3 id="planModalTitle">Add planned item</h3>
-    <input id="editPlanId" type="hidden">
-    <div class="row">
-      <label>Date<input id="planDate" type="date"></label>
-      <label>Type<select id="planType">
-        <option value="income">Income / Paycheck</option>
-        <option value="expense">Expense / Reserve</option>
-        <option value="tdPayment">TD payment</option>
-        <option value="rbcPayment">RBC payment</option>
-        <option value="tdPurchase">TD planned purchase</option>
-        <option value="rbcPurchase">RBC planned purchase</option>
-      </select></label>
-    </div>
-    <label>Description<input id="planDesc" type="text" placeholder="Oct 15 paycheck"></label>
-    <label>Amount<input id="planAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"></label>
-    <div class="actions">
-      <button id="savePlanBtn" class="btn" type="button">Save planned item</button>
-      <button id="deletePlanBtn" class="btn danger hide" type="button">Delete</button>
-      <button id="closePlanBtn" class="btn secondary" type="button">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
-</body>
-</html>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script>
+</body></html>
