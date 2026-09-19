@@ -8,9 +8,10 @@ let syncTimer=null;
 let cloudBusy=false;
 let initialCloudResolved=false;
 
-const STORAGE_KEY='personal-finance-pwa-v1';
+const STORAGE_KEY='personal-finance-pwa-v4-3';
+const APP_VERSION='4.3';
 const defaults={
-  balances:{cheq:60,td:1869,rbc:0},
+  balances:{cheq:60,td:2490.30,rbc:0},
   transactions:[],
   plan:[
     {id:'p1',date:'2026-10-01',type:'income',desc:'Paycheck (estimated)',amount:840},
@@ -89,7 +90,7 @@ async function uploadStateToCloud(showMessage=true){
   if(!currentUser||!sb||cloudBusy) return;
   cloudBusy=true; setCloudUI('warn','Syncing…'); if($('syncStatus')) $('syncStatus').textContent='Syncing…';
   try{
-    const payload={...state,_cloudMeta:{syncedFrom:'money-tracker-v4',syncedAt:new Date().toISOString()}};
+    const payload={...state,_cloudMeta:{version:APP_VERSION,syncedFrom:'money-tracker-v4.3',syncedAt:new Date().toISOString()}};
     const {error}=await sb.from('finance_state').upsert({user_id:currentUser.id,data:payload,updated_at:new Date().toISOString()},{onConflict:'user_id'});
     if(error) throw error;
     setCloudUI('ok','Synced'); if($('syncStatus')) $('syncStatus').textContent='Synced';
@@ -137,6 +138,29 @@ initCloud();
     return false;
   }finally{cloudBusy=false}
 }
+
+async function refreshFromCloudIfSignedIn(){
+  if(!currentUser||!sb||cloudBusy) return;
+  try{
+    const {data,error}=await getCloudRow();
+    if(error||!data) return;
+    const cloudState=sanitizeCloudState(data.data);
+    if(!cloudState) return;
+    const localJSON=JSON.stringify({...state,_cloudMeta:undefined});
+    const cloudJSON=JSON.stringify({...cloudState,_cloudMeta:undefined});
+    if(localJSON!==cloudJSON){
+      state=cloudState;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      populateCats(); render();
+      setCloudUI('ok','Synced');
+      if($('syncStatus')) $('syncStatus').textContent='Synced';
+      setCloudMessage('Updated from cloud.');
+    }
+  }catch(e){
+    console.error(e);
+  }
+}
+
 function localLooksMeaningful(){
   const d=defaults;
   if(state.transactions?.length) return true;
@@ -153,23 +177,27 @@ async function resolveInitialCloud(){
     const {data,error}=await getCloudRow();
     if(error) throw error;
     if(!data){
+      initialCloudResolved=true;
       await uploadStateToCloud(false);
       setCloudMessage('Cloud was empty, so this device became the first synced copy.');
+      setCloudUI('ok','Synced');
     }else{
       const cloudState=sanitizeCloudState(data.data);
-      const localRaw=JSON.stringify({...state,_cloudMeta:undefined});
-      const cloudRaw=JSON.stringify({...cloudState,_cloudMeta:undefined});
-      if(localLooksMeaningful() && localRaw!==cloudRaw){
-        setCloudMessage('Cloud data already exists and differs from this device. Use “Upload this device” or “Download cloud” to choose which copy wins.');
-        setCloudUI('warn','Choose sync copy');
-      }else{
-        state=cloudState; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); populateCats(); render();
-        setCloudUI('ok','Synced'); setCloudMessage('Cloud data loaded.');
-      }
+      state=cloudState;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      populateCats(); render();
+      initialCloudResolved=true;
+      setCloudUI('ok','Synced');
+      if($('syncStatus')) $('syncStatus').textContent='Synced';
+      setCloudMessage('Cloud data loaded on this device.');
     }
   }catch(e){
-    console.error(e); setCloudUI('off','Sync error'); setCloudMessage('Could not connect to cloud: '+(e.message||'Unknown error'));
-  }finally{initialCloudResolved=true}
+    console.error(e);
+    setCloudUI('off','Sync error');
+    setCloudMessage('Could not connect to cloud: '+(e.message||'Unknown error'));
+  }finally{
+    initialCloudResolved=true;
+  }
 }
 function renderAuth(){
   const signedIn=!!currentUser;
@@ -181,8 +209,10 @@ function renderAuth(){
 }
 async function initCloud(){
   if(!sb){setCloudUI('off','Cloud unavailable');return}
-  const {data:{session}}=await sb.auth.getSession();
-  currentUser=session?.user||null; renderAuth();
+  const {data:{session},error:sessionError}=await sb.auth.getSession();
+  if(sessionError){ console.error(sessionError); currentUser=null; }
+  else currentUser=session?.user||null;
+  renderAuth();
   if(currentUser) await resolveInitialCloud();
   sb.auth.onAuthStateChange(async(event,session)=>{
     const previous=currentUser?.id; currentUser=session?.user||null; renderAuth();
@@ -503,6 +533,11 @@ $('downloadCloudBtn').addEventListener('click',async()=>{
 $('signOutBtn').addEventListener('click',async()=>{await sb.auth.signOut();currentUser=null;renderAuth()});
 window.addEventListener('online',()=>{if(currentUser){setCloudUI('warn','Back online');scheduleCloudSync()}else setCloudUI('warn','Not signed in')});
 window.addEventListener('offline',()=>setCloudUI('off','Offline'));
+
+
+window.addEventListener('focus',()=>{refreshFromCloudIfSignedIn()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible') refreshFromCloudIfSignedIn()});
+setInterval(()=>{if(document.visibilityState==='visible') refreshFromCloudIfSignedIn()},20000);
 
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').classList.remove('hide')});

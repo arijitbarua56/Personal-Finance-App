@@ -230,7 +230,7 @@
 
 
       <div class="section card">
-        <h2 class="section-title">Cloud sync</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 class="section-title" style="margin:0">Cloud sync</h2><span class="pill">V4.3</span></div>
         <div id="signedOutCloud">
           <div class="footer-note" style="margin:0 0 10px">Sign in directly inside the app with the same email and password on your phone and laptop.</div>
           <label>Email<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
@@ -253,7 +253,7 @@
             <button id="downloadCloudBtn" type="button" class="btn secondary">Download cloud</button>
             <button id="signOutBtn" type="button" class="btn danger">Sign out</button>
           </div>
-          <div class="footer-note"><strong>First setup:</strong> sign in on the phone that contains your latest data first. If the cloud is empty, V4 uploads that device automatically.</div>
+          <div class="footer-note"><strong>First setup:</strong> because V4.3 uses a fresh local profile, sign in on the device you want to use as the starting copy first. If the cloud is empty, that device uploads automatically. Other devices download the cloud copy when they sign in.</div>
           <div id="cloudStatus" class="status"></div>
         </div>
       </div>

@@ -1,0 +1,39 @@
+Money Tracker V4.3 — clean shared sync build
+
+Starting account values:
+- Chequing: $60.00
+- TD Credit Card: $2,490.30
+- RBC Credit Card: $0.00
+
+Cloud behavior:
+- Uses Supabase email + password sign-in directly inside the PWA.
+- If the signed-in user has NO finance_state row, the first signed-in device uploads its local copy.
+- If cloud data exists, every other signed-in device downloads it automatically.
+- While the app is open, it refreshes from cloud every ~20 seconds and whenever the app/browser regains focus.
+- Every local change automatically uploads to cloud after a short delay.
+
+IMPORTANT:
+Because the old Supabase user was deleted, create a fresh account in the app with email + password.
+For the smoothest experience in Supabase:
+Authentication > Providers > Email
+- Email provider: ON
+- Confirm email: OFF (recommended for this private app)
+
+Deploy:
+Replace the same six GitHub files:
+index.html
+app.js
+manifest.webmanifest
+sw.js
+icon-192.png
+icon-512.png
+
+After GitHub Pages deploys:
+1. Delete the old Home Screen app once more so iOS isn't holding the old service worker.
+2. Open the GitHub Pages URL in Safari and confirm Settings > Cloud sync shows V4.3.
+3. Add it to Home Screen again.
+4. Open the Home Screen app.
+5. Settings > Cloud sync > Create account using email + password.
+6. The Home Screen app should upload the fresh starting copy if cloud is empty.
+7. On laptop, open the same site and sign in with the same email/password.
+8. The laptop should download the cloud copy automatically.
