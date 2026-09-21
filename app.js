@@ -30,15 +30,11 @@ const defaults={
  transactions:[],
  settings:{utilTarget:35,biweeklyPay:850,nextPayDate:"2026-10-01",savingPerPay:25,trackingStartDate:"2026-09-18"},
  plan:[
-  {id:"plan-1",date:"2026-10-01",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:840},
+  {id:"plan-1",date:"2026-10-01",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:850},
   {id:"plan-2",date:"2026-10-01",type:"expense",description:"October rent",accountId:"td-cheq",amount:600},
-  {id:"plan-3",date:"2026-10-15",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:840},
+  {id:"plan-3",date:"2026-10-15",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:850},
   {id:"plan-4",date:"2026-10-15",type:"income",description:"Dad transfer",accountId:"td-cheq",amount:1000},
-  {id:"plan-5",date:"2026-10-15",type:"cardPayment",description:"TD credit card payment",fromAccountId:"td-cheq",toAccountId:"td-credit",amount:600},
-  {id:"plan-8",date:"2026-11-12",type:"cardPayment",description:"TD credit card payment",fromAccountId:"td-cheq",toAccountId:"td-credit",amount:300},
-  {id:"plan-9",date:"2026-12-10",type:"cardPayment",description:"TD credit card payment",fromAccountId:"td-cheq",toAccountId:"td-credit",amount:350},
-  {id:"plan-10",date:"2027-01-07",type:"cardPayment",description:"TD credit card payment to reach <35%",fromAccountId:"td-cheq",toAccountId:"td-credit",amount:366.30},
-  {id:"plan-6",date:"2026-10-29",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:840},
+  {id:"plan-6",date:"2026-10-29",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:850},
   {id:"plan-7",date:"2026-10-29",type:"expense",description:"Reserve November rent",accountId:"td-cheq",amount:600}
  ]
 };
@@ -52,10 +48,17 @@ const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth
 const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random();
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
+function normalizeAccounts(list){
+ const arr=Array.isArray(list)?list:[];
+ return arr.map(a=>{
+   if(a.id==="td-credit"&&(!Number(a.creditLimit)||Number(a.creditLimit)<=0)) return {...a,creditLimit:2500};
+   return a;
+ });
+}
 function migrateLegacy(raw){
  try{
   const s=JSON.parse(raw);
-  if(Array.isArray(s.accounts)){
+  if(Array.isArray(s.accounts)){ s.accounts=normalizeAccounts(s.accounts);
     if(!Array.isArray(s.plan)) s.plan=clone(defaults.plan);
     if(!s.settings)s.settings=clone(defaults.settings);
     s.settings={...clone(defaults.settings),...s.settings};
@@ -86,12 +89,12 @@ function migrateLegacy(raw){
 function loadState(){
  const cur=localStorage.getItem(STORAGE_KEY);if(cur){try{return JSON.parse(cur)}catch(e){}}
  for(const k of LEGACY_KEYS){const v=localStorage.getItem(k);if(v){const m=migrateLegacy(v);if(m){localStorage.setItem(STORAGE_KEY,JSON.stringify(m));return m}}}
- return clone(defaults);
+ const d=clone(defaults);d.accounts=normalizeAccounts(d.accounts);return d;
 }
 function save(localOnly=false){
  if(!Array.isArray(state.plan))state.plan=clone(defaults.plan);
  if(!state.settings)state.settings=clone(defaults.settings);
- state.settings={...clone(defaults.settings),...state.settings};
+ state.settings={...clone(defaults.settings),...state.settings};state.accounts=normalizeAccounts(state.accounts);
  if(!Array.isArray(state.categories))state.categories=clone(defaults.categories);
  const ids=new Set(state.categories.map(c=>c.id));defaults.categories.forEach(c=>{if(!ids.has(c.id))state.categories.push(clone(c))});
  state.categories=state.categories.map(c=>{const d=defaults.categories.find(x=>x.id===c.id);return {...(d||{}),...c,kind:c.kind||(d?.kind||"variable")}});
@@ -327,13 +330,79 @@ function projectedPlan(){
  });
  return {cash,debt,balances};
 }
+
+function tdCard(){
+ return state.accounts.find(a=>a.id==="td-credit")||state.accounts.find(a=>a.type==="credit");
+}
+function paycheckDates(count=10){
+ const now=new Date();
+ let d=nextPaydayOnOrAfter(now);
+ const out=[];
+ for(let i=0;i<count;i++){out.push(new Date(d));d=addDays(d,14)}
+ return out;
+}
+function monthlyLivingReserveFor(date){
+ const model=regularMonthModel(date.getFullYear(),date.getMonth());
+ const pays=Math.max(1,model.paydays);
+ return {
+   fixedPerPay:model.fixed/pays,
+   variablePerPay:model.living/pays,
+   savingsPerPay:Number(state.settings?.savingPerPay||25),
+   income:Number(state.settings?.biweeklyPay||850)
+ };
+}
+function renderPaycheckDebtPlan(){
+ if(!$("paycheckDebtPlan"))return;
+ const card=tdCard();
+ if(!card){$("paycheckDebtPlan").innerHTML='<div class="empty">Add a credit card to build a payoff plan.</div>';return}
+ if(!Number(card.creditLimit)||Number(card.creditLimit)<=0)card.creditLimit=2500;
+ const limit=Number(card.creditLimit),targetPct=Number(state.settings?.utilTarget??35),targetBal=limit*(targetPct/100);
+ let debt=Math.max(0,Number(card.balance)||0);
+ const util=limit>0?debt/limit*100:0;
+ $("currentTdUtil").textContent=util.toFixed(1)+"%";
+ $("currentTdUtil").className="account-value "+(util<targetPct?"good":"bad");
+ $("currentTdDebt").textContent=money(debt)+" / "+money(limit);
+ $("tdTargetBalance").textContent=money(targetBal);
+
+ const wrap=$("paycheckDebtPlan");wrap.innerHTML="";
+ if(debt<targetBal){
+   $("paycheckPlanStatus").textContent="Target reached";$("paycheckPlanStatus").className="badge ok";
+   wrap.innerHTML='<div class="empty">Your TD balance is already below the utilization target.</div>';return;
+ }
+ $("paycheckPlanStatus").textContent="Target < "+targetPct+"%";$("paycheckPlanStatus").className="badge warn";
+
+ const dates=paycheckDates(10);
+ let reached=false;
+ dates.forEach(d=>{
+   if(reached)return;
+   const a=monthlyLivingReserveFor(d);
+   const reserve=a.fixedPerPay+a.variablePerPay+a.savingsPerPay;
+   const safeDebt=Math.max(0,a.income-reserve);
+   const need=Math.max(0,debt-targetBal+0.01); // ensure strictly below target
+   const payment=Math.min(safeDebt,need);
+   const after=Math.max(0,debt-payment);
+   const afterUtil=limit>0?after/limit*100:0;
+   const keep=Math.max(0,a.income-payment);
+   const row=document.createElement("div");row.className="paycheck-row";
+   row.innerHTML='<div class="paycheck-head"><div><div class="list-title">'+d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})+' paycheck</div><div class="paycheck-date">'+money(a.income)+' estimated take-home</div></div><div class="paycheck-payment">'+money(payment)+' → TD</div></div>'+
+   '<div class="allocation-grid">'+
+   '<div class="allocation-cell"><div class="allocation-label">Bills reserve</div><div class="allocation-value">'+money(a.fixedPerPay)+'</div></div>'+
+   '<div class="allocation-cell"><div class="allocation-label">Day-to-day</div><div class="allocation-value">'+money(a.variablePerPay)+'</div></div>'+
+   '<div class="allocation-cell"><div class="allocation-label">Savings</div><div class="allocation-value">'+money(a.savingsPerPay)+'</div></div>'+
+   '<div class="allocation-cell"><div class="allocation-label">Left after TD</div><div class="allocation-value">'+money(keep)+'</div></div>'+
+   '</div><div class="sub" style="margin-top:7px">TD after payment: '+money(after)+' · '+afterUtil.toFixed(1)+'% utilization · '+(payment/a.income*100).toFixed(0)+'% of this paycheck to the card</div>';
+   wrap.appendChild(row);
+   debt=after;
+   if(afterUtil<targetPct){reached=true}
+ });
+ if(!reached){
+   const note=document.createElement("div");note.className="empty";note.textContent="At the current income and living-cost assumptions, the target takes longer than the paychecks shown.";wrap.appendChild(note);
+ }
+}
+
 function renderPlan(){
  if(!$("planList")) return;
- const proj=projectedPlan();
- $("planCash").textContent=money(proj.cash);
- $("planCash").className="account-value "+(proj.cash<100?"bad":proj.cash<300?"warn":"gold");
- $("planDebt").textContent=money(proj.debt);
- $("planDebt").className="account-value "+(proj.debt>0?"bad":"good");
+ renderPaycheckDebtPlan();
  const wrap=$("planList");wrap.innerHTML="";
  const arr=(state.plan||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
  if(!arr.length){wrap.innerHTML='<div class="empty">No planned items yet.</div>';return}
@@ -438,7 +507,7 @@ $("filterAccount").onchange=renderHistory;$("filterCategory").onchange=renderHis
 function cloudBadge(kind,text){const b=$("cloudBadge");b.className="badge "+kind;b.textContent=text}
 function scheduleSync(){if(!user||!cloudReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(uploadCloud,600)}
 async function uploadCloud(){if(!user||syncing)return;syncing=true;cloudBadge("warn","Syncing…");try{const {error}=await sb.from("finance_state").upsert({user_id:user.id,data:state,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)throw error;cloudBadge("ok","Synced");$("syncText").textContent="Synced"}catch(e){cloudBadge("off","Sync error");$("cloudMsg").textContent=e.message}finally{syncing=false}}
-async function loadCloud(){if(!user)return;const {data,error}=await sb.from("finance_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;if(data?.data&&Array.isArray(data.data.accounts)){state={...clone(defaults),...data.data,accounts:data.data.accounts,categories:Array.isArray(data.data.categories)?data.data.categories:clone(defaults.categories),transactions:Array.isArray(data.data.transactions)?data.data.transactions:[],plan:Array.isArray(data.data.plan)?data.data.plan:clone(defaults.plan),settings:{...clone(defaults.settings),...(data.data.settings||{})}};
+async function loadCloud(){if(!user)return;const {data,error}=await sb.from("finance_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;if(data?.data&&Array.isArray(data.data.accounts)){state={...clone(defaults),...data.data,accounts:normalizeAccounts(data.data.accounts),categories:Array.isArray(data.data.categories)?data.data.categories:clone(defaults.categories),transactions:Array.isArray(data.data.transactions)?data.data.transactions:[],plan:Array.isArray(data.data.plan)?data.data.plan:clone(defaults.plan),settings:{...clone(defaults.settings),...(data.data.settings||{})}};
  const cids=new Set((state.categories||[]).map(c=>c.id));defaults.categories.forEach(c=>{if(!cids.has(c.id))state.categories.push(clone(c))});
  state.categories=state.categories.map(c=>{const d=defaults.categories.find(x=>x.id===c.id);return {...(d||{}),...c,kind:c.kind||(d?.kind||"variable")}});
  localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}else await uploadCloud();cloudReady=true;render();cloudBadge("ok","Synced")}
@@ -455,4 +524,4 @@ $("importFile").onchange=async e=>{try{const x=JSON.parse(await e.target.files[0
  state=x;save()}catch(err){alert("Invalid backup")}e.target.value=""};
 
 if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js");
-render();initAuth();
+state.accounts=normalizeAccounts(state.accounts);render();initAuth();

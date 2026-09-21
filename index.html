@@ -53,11 +53,20 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 
 .account-empty{color:var(--muted);font-size:13px;padding:10px 0}
 .cash-flow-note{font-size:12px;color:var(--muted);line-height:1.45}
+
+.paycheck-row{padding:13px 0;border-bottom:1px solid #222}.paycheck-row:last-child{border-bottom:0}
+.paycheck-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.paycheck-date{font-size:12px;color:var(--muted)}.paycheck-payment{font-weight:800;color:var(--good)}
+.allocation-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}
+.allocation-cell{background:#0d0d0d;border:1px solid #222;border-radius:10px;padding:8px}
+.allocation-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.allocation-value{font-size:13px;font-weight:750;margin-top:2px}
+@media(max-width:520px){.allocation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
 <div class="app">
-<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.6 · realistic cash-flow budget</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
+<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.7 · paycheck debt plan</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
 <main>
 <section id="page-home" class="page active">
 
@@ -134,8 +143,19 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 
 <section id="page-plan" class="page">
  <div class="account-grid">
-   <div class="account-card"><div class="account-name">Projected cash</div><div id="planCash" class="account-value gold">$0.00</div><div class="account-type">After planned items</div></div>
-   <div class="account-card"><div class="account-name">Projected card debt</div><div id="planDebt" class="account-value bad">$0.00</div><div class="account-type">After planned items</div></div>
+   <div class="account-card"><div class="account-name">Current TD utilization</div><div id="currentTdUtil" class="account-value bad">0%</div><div id="currentTdDebt" class="account-type">$0 / $0</div></div>
+   <div class="account-card"><div class="account-name">Target balance</div><div id="tdTargetBalance" class="account-value gold">$0.00</div><div class="account-type">Below 35% utilization</div></div>
+ </div>
+
+ <div class="section card">
+   <div class="section-head">
+     <div>
+       <div class="section-title">Paycheck → card plan</div>
+       <div class="sub">Automatically estimates how much of each biweekly paycheck can safely go to TD after reserving living costs and savings.</div>
+     </div>
+     <span id="paycheckPlanStatus" class="badge">Calculating</span>
+   </div>
+   <div id="paycheckDebtPlan"></div>
  </div>
 
 
@@ -153,8 +173,8 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
  <div class="section card">
    <div class="section-head">
      <div>
-       <div class="section-title">Future plan</div>
-       <div class="sub">Planned items do not change your real balances until you record the actual transaction.</div>
+       <div class="section-title">Other future items</div>
+       <div class="sub">Use this for transfers, rent reserves, or one-off items. The paycheck debt plan above is calculated automatically.</div>
      </div>
      <button id="addPlanBtn" class="btn small">+ Plan item</button>
    </div>
