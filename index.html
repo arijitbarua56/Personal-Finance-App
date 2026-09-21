@@ -36,13 +36,54 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 .plan-row{display:grid;grid-template-columns:88px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid #222}
 .plan-row:last-child{border-bottom:0}.plan-date{font-size:11px;color:var(--muted)}.plan-kind{font-size:11px;color:var(--muted);margin-top:3px}.plan-row button{border:0;background:transparent;color:inherit;text-align:left;padding:0}
 @media(max-width:420px){.plan-row{grid-template-columns:72px 1fr auto}}
+
+.trajectory-row{display:grid;grid-template-columns:88px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #222}
+.trajectory-row:last-child{border-bottom:0}.trajectory-balance{font-weight:800}.util{height:6px;background:#242424;border-radius:999px;overflow:hidden;margin-top:6px}.util-fill{height:100%;background:var(--gold)}
+@media(max-width:420px){.trajectory-row{grid-template-columns:72px 1fr auto}}
+
+.month-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.mini-stat{background:#0e0e0e;border:1px solid var(--line);border-radius:14px;padding:11px}
+.mini-label{font-size:10px;color:var(--muted)}.mini-value{font-size:17px;font-weight:800;margin-top:4px}
+.forecast-main{font-size:20px;font-weight:800;color:var(--gold2)}
+.month-row{display:grid;grid-template-columns:92px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #222}
+.month-row:last-child{border-bottom:0}.month-date{font-size:12px;color:var(--muted)}
+.threshold-line{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted);margin-top:4px}
+.delete-tx{border:1px solid #4a2222;background:#1b1111;color:#ff9f9f;border-radius:10px;padding:7px 9px;font-size:11px;flex:0 0 auto}
+@media(max-width:520px){.month-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.month-row{grid-template-columns:72px 1fr auto}}
 </style>
 </head>
 <body>
 <div class="app">
-<header><div><h1>Money Tracker</h1><div class="sub">V5.1 · flexible accounts, plan & cloud sync</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
+<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.4 · monthly budget & debt forecast</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
 <main>
 <section id="page-home" class="page active">
+
+ <div class="section card">
+   <div class="section-head">
+     <div>
+       <div class="section-title" id="currentMonthTitle">This month</div>
+       <div class="sub" id="monthProgressText"></div>
+     </div>
+     <span id="monthHealthBadge" class="badge">On track</span>
+   </div>
+   <div class="month-grid">
+     <div class="mini-stat"><div class="mini-label">Income target</div><div id="monthIncome" class="mini-value gold">$0.00</div></div>
+     <div class="mini-stat"><div class="mini-label">Budget</div><div id="monthBudget" class="mini-value">$0.00</div></div>
+     <div class="mini-stat"><div class="mini-label">Spent</div><div id="monthSpent" class="mini-value">$0.00</div></div>
+     <div class="mini-stat"><div class="mini-label">Remaining</div><div id="monthRemaining" class="mini-value">$0.00</div></div>
+   </div>
+   <div class="section-head" style="margin-top:14px;margin-bottom:6px">
+     <div><div class="section-title">Debt forecast</div><div class="sub">Updates automatically when spending goes over budget.</div></div>
+   </div>
+   <div id="debtForecastText" class="forecast-main"></div>
+   <div id="debtForecastSub" class="sub" style="margin-top:5px"></div>
+ </div>
+
+ <div class="section card">
+   <div class="section-head"><div><div class="section-title">Month-to-month outlook</div><div class="sub">Estimated using your pay schedule and monthly targets.</div></div></div>
+   <div id="monthlyOutlook"></div>
+ </div>
+
  <div class="section-head"><div class="section-title">Accounts</div><button id="homeManageAccounts" class="btn secondary small">Manage</button></div>
  <div id="homeAccounts" class="account-grid"></div>
  <div class="section card"><div class="section-head"><div class="section-title">Quick add</div><button id="editQuickBtn" class="btn secondary small">Edit</button></div><div id="quickActions" class="quick-grid"></div></div>
@@ -67,6 +108,18 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
    <div class="account-card"><div class="account-name">Projected card debt</div><div id="planDebt" class="account-value bad">$0.00</div><div class="account-type">After planned items</div></div>
  </div>
 
+
+ <div class="section card">
+   <div class="section-head">
+     <div>
+       <div class="section-title">Utilization trajectory</div>
+       <div class="sub">Shows how each planned payment moves you toward your utilization target.</div>
+     </div>
+     <span id="debtTargetBadge" class="badge">Target &lt; 35%</span>
+   </div>
+   <div id="debtTrajectory"></div>
+ </div>
+
  <div class="section card">
    <div class="section-head">
      <div>
@@ -86,13 +139,32 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
  </div>
 </section>
 
-<section id="page-budget" class="page"><div class="card"><div class="section-head"><div class="section-title">Monthly budgets</div><button id="manageCatsBtn" class="btn secondary small">Manage categories</button></div><div id="budgetList"></div></div></section>
+<section id="page-budget" class="page"><div class="card"><div class="section-head"><div><div class="section-title">Monthly budgets</div><div class="sub">Thresholds show how much you should have spent by today to stay on pace.</div></div><button id="manageCatsBtn" class="btn secondary small">Manage categories</button></div><div id="budgetList"></div></div></section>
 
 <section id="page-history" class="page"><div class="card"><div class="row"><label>Account<select id="filterAccount"></select></label><label>Category<select id="filterCategory"></select></label></div><div id="historyList"></div></div></section>
 
 <section id="page-settings" class="page">
  <div class="card"><div class="section-head"><div class="section-title">Accounts</div><button id="addAccountBtn" class="btn small">+ Account</button></div><div id="settingsAccounts"></div></div>
  <div class="section card"><div class="section-head"><div class="section-title">Categories</div><button id="addCategoryBtn" class="btn small">+ Category</button></div><div id="settingsCategories"></div></div>
+ 
+
+ <div class="section card">
+  <div class="section-title" style="margin-bottom:10px">Income & pay schedule</div>
+  <div class="row">
+   <label>Estimated biweekly take-home<input id="biweeklyPayInput" type="number" min="0" step="0.01"></label>
+   <label>Next payday<input id="nextPayDateInput" type="date"></label>
+  </div>
+  <div class="sub" style="margin-bottom:10px">Used for month-to-month budget and debt predictions.</div>
+  <button id="saveIncomeSettingsBtn" class="btn">Save pay settings</button>
+ </div>
+
+ <div class="section card">
+  <div class="section-title" style="margin-bottom:10px">Credit utilization target</div>
+  <label>Target utilization (%)<input id="utilTargetInput" type="number" min="1" max="100" step="0.1"></label>
+  <div class="sub" style="margin-bottom:10px">The Plan tab calculates the maximum acceptable balance automatically from each card's credit limit.</div>
+  <button id="saveUtilTargetBtn" class="btn">Save target</button>
+ </div>
+
  <div class="section card"><div class="section-head"><div class="section-title">Cloud sync</div><span class="badge gold">Supabase</span></div>
   <div id="signedOut"><label>Email<input id="authEmail" type="email" autocomplete="email"></label><label>Password<input id="authPassword" type="password" autocomplete="current-password"></label><div class="actions"><button id="signInBtn" class="btn">Sign in</button><button id="signUpBtn" class="btn secondary">Create account</button></div></div>
   <div id="signedIn" class="hide"><div class="list-row"><div><div class="list-title">Signed in</div><div id="signedEmail" class="list-meta"></div></div><span id="syncText" class="badge ok">Synced</span></div><div class="actions" style="margin-top:10px"><button id="syncBtn" class="btn">Sync now</button><button id="signOutBtn" class="btn secondary">Sign out</button></div></div><div id="cloudMsg" class="status"></div>
@@ -103,7 +175,7 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 
 <nav class="bottom-nav"><button class="nav-btn active" data-page="home"><b>⌂</b>Home</button><button class="nav-btn" data-page="add"><b>＋</b>Add</button><button class="nav-btn" data-page="plan"><b>◎</b>Plan</button><button class="nav-btn" data-page="budget"><b>◫</b>Budget</button><button class="nav-btn" data-page="history"><b>☷</b>History</button><button class="nav-btn" data-page="settings"><b>⚙︎</b>Settings</button></nav>
 
-<div id="accountModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="accountModalTitle">Add account</div><input id="editAccountId" type="hidden"><label>Name<input id="accountName" type="text" placeholder="RBC Chequing"></label><label>Type<select id="accountType"><option value="chequing">Chequing</option><option value="savings">Savings</option><option value="credit">Credit card</option><option value="investment">Investment</option><option value="cash">Cash</option></select></label><label>Current balance<input id="accountBalance" type="number" step="0.01"></label><div class="actions"><button id="saveAccountBtn" class="btn">Save</button><button id="deleteAccountBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
+<div id="accountModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="accountModalTitle">Add account</div><input id="editAccountId" type="hidden"><label>Name<input id="accountName" type="text" placeholder="RBC Chequing"></label><label>Type<select id="accountType"><option value="chequing">Chequing</option><option value="savings">Savings</option><option value="credit">Credit card</option><option value="investment">Investment</option><option value="cash">Cash</option></select></label><label>Current balance<input id="accountBalance" type="number" step="0.01"></label><div id="creditLimitWrap"><label>Credit limit<input id="accountCreditLimit" type="number" min="0" step="0.01" placeholder="2500"></label></div><div class="actions"><button id="saveAccountBtn" class="btn">Save</button><button id="deleteAccountBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
 
 <div id="categoryModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="categoryModalTitle">Add category</div><input id="editCategoryId" type="hidden"><label>Name<input id="categoryName" type="text" placeholder="Coffee"></label><label>Emoji<input id="categoryEmoji" type="text" maxlength="4" placeholder="☕"></label><label>Monthly target<input id="categoryBudget" type="number" min="0" step="0.01" placeholder="0"></label><label><input id="categoryQuick" type="checkbox" style="width:auto;min-height:auto;margin-right:8px">Show on Home quick add</label><div class="actions"><button id="saveCategoryBtn" class="btn">Save</button><button id="deleteCategoryBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
 
