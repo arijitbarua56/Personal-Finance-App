@@ -62,11 +62,15 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 .allocation-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .allocation-value{font-size:13px;font-weight:750;margin-top:2px}
 @media(max-width:520px){.allocation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.debt-allocation-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #222}.debt-allocation-row:last-child{border-bottom:0}.debt-tag{font-size:11px;color:var(--muted);margin-top:3px}
+
+.cap-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:10px 0;border-bottom:1px solid #222}
+.cap-row:last-child{border-bottom:0}.cap-name{font-weight:700}.cap-meta{font-size:11px;color:var(--muted);margin-top:3px}.cap-value{font-weight:800;color:var(--gold2)}
 </style>
 </head>
 <body>
 <div class="app">
-<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.7 · paycheck debt plan</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
+<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.9 · transfer-aware debt plan</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
 <main>
 <section id="page-home" class="page active">
 
@@ -87,11 +91,26 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
    <div id="trackingNote" class="sub" style="margin-top:8px"></div>
  </div>
 
+
+ <div class="section card">
+   <div class="section-head">
+     <div>
+       <div class="section-title" id="categoryCapsTitle">Recommended until payday</div>
+       <div class="sub">Dynamic caps based on cash actually available before your next paycheck.</div>
+     </div>
+     <span id="categoryCapsTotal" class="badge">$0</span>
+   </div>
+   <div id="categoryCapsList"></div>
+ </div>
+
  <div class="section-head"><div class="section-title">Chequing & cash</div><button id="homeManageAccounts" class="btn secondary small">Manage</button></div>
  <div id="homeCashAccounts" class="account-grid"></div>
 
  <div class="section-head" style="margin-top:14px"><div class="section-title">Credit card debt</div></div>
  <div id="homeCreditAccounts" class="account-grid"></div>
+
+ <div class="section-head" style="margin-top:14px"><div class="section-title">Other debts</div></div>
+ <div id="homeDebtAccounts" class="account-grid"></div>
 
  <div class="section card">
    <div class="section-head">
@@ -147,11 +166,18 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
    <div class="account-card"><div class="account-name">Target balance</div><div id="tdTargetBalance" class="account-value gold">$0.00</div><div class="account-type">Below 35% utilization</div></div>
  </div>
 
+
+ <div class="section card">
+   <div class="section-head"><div><div class="section-title">Family transfer plan</div><div class="sub">Suggested one-time split before the paycheck plan starts.</div></div><span id="transferStatusBadge" class="badge warn">Not received</span></div>
+   <div id="lumpSumAllocation"></div>
+   <div class="sub" style="margin-top:8px">Recommendation only — record actual payments when you make them.</div>
+ </div>
+
  <div class="section card">
    <div class="section-head">
      <div>
-       <div class="section-title">Paycheck → card plan</div>
-       <div class="sub">Automatically estimates how much of each biweekly paycheck can safely go to TD after reserving living costs and savings.</div>
+       <div class="section-title">Paycheck → debt plan</div>
+       <div class="sub">Reserves rent only on the paycheck that must cover the next 1st, then uses safe debt money for friend debt first and TD second.</div>
      </div>
      <span id="paycheckPlanStatus" class="badge">Calculating</span>
    </div>
@@ -168,6 +194,12 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
      <span id="debtTargetBadge" class="badge">Target &lt; 35%</span>
    </div>
    <div id="debtTrajectory"></div>
+ </div>
+
+
+ <div class="section card">
+  <div class="section-head"><div><div class="section-title">TD spending guardrail</div><div class="sub">New purchases extend the payoff timeline.</div></div></div>
+  <div class="month-grid"><div class="mini-stat"><div class="mini-label">Monthly card cap</div><div id="cardSpendCap" class="mini-value gold">$150.00</div></div><div class="mini-stat"><div class="mini-label">TD purchases this month</div><div id="cardSpendUsed" class="mini-value">$0.00</div></div><div class="mini-stat"><div class="mini-label">Cap remaining</div><div id="cardSpendRemaining" class="mini-value good">$0.00</div></div></div>
  </div>
 
  <div class="section card">
@@ -198,6 +230,22 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
  <div class="section card"><div class="section-head"><div class="section-title">Categories</div><button id="addCategoryBtn" class="btn small">+ Category</button></div><div id="settingsCategories"></div></div>
  
 
+
+
+ <div class="section card">
+  <div class="section-title" style="margin-bottom:10px">Debt strategy</div>
+  <label style="display:flex;align-items:center;gap:8px"><input id="transferReceivedInput" type="checkbox" style="width:auto;min-height:auto">I have received the family transfer</label>
+  <div class="row">
+   <label>Family transfer amount<input id="lumpSumInput" type="number" min="0" step="0.01"></label>
+   <label>Expected / received date<input id="transferDateInput" type="date"></label>
+  </div>
+  <div class="row">
+   <label>Monthly TD spending cap<input id="cardSpendCapInput" type="number" min="0" step="0.01"></label>
+   <label>Friend-debt target date<input id="friendDeadlineInput" type="date"></label>
+  </div>
+  <div class="sub" style="margin-bottom:10px">Until you mark the transfer received, the plan prioritizes rent, JDC, bills and liquidity. The aggressive debt split activates on/after the expected date.</div>
+  <button id="saveDebtStrategyBtn" class="btn">Save debt strategy</button>
+ </div>
 
  <div class="section card">
   <div class="section-title" style="margin-bottom:10px">Budget assumptions</div>
@@ -236,7 +284,7 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 
 <nav class="bottom-nav"><button class="nav-btn active" data-page="home"><b>⌂</b>Home</button><button class="nav-btn" data-page="add"><b>＋</b>Add</button><button class="nav-btn" data-page="plan"><b>◎</b>Plan</button><button class="nav-btn" data-page="budget"><b>◫</b>Budget</button><button class="nav-btn" data-page="history"><b>☷</b>History</button><button class="nav-btn" data-page="settings"><b>⚙︎</b>Settings</button></nav>
 
-<div id="accountModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="accountModalTitle">Add account</div><input id="editAccountId" type="hidden"><label>Name<input id="accountName" type="text" placeholder="RBC Chequing"></label><label>Type<select id="accountType"><option value="chequing">Chequing</option><option value="savings">Savings</option><option value="credit">Credit card</option><option value="investment">Investment</option><option value="cash">Cash</option></select></label><label>Current balance<input id="accountBalance" type="number" step="0.01"></label><div id="creditLimitWrap"><label>Credit limit<input id="accountCreditLimit" type="number" min="0" step="0.01" placeholder="2500"></label></div><div class="actions"><button id="saveAccountBtn" class="btn">Save</button><button id="deleteAccountBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
+<div id="accountModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="accountModalTitle">Add account</div><input id="editAccountId" type="hidden"><label>Name<input id="accountName" type="text" placeholder="RBC Chequing"></label><label>Type<select id="accountType"><option value="chequing">Chequing</option><option value="savings">Savings</option><option value="credit">Credit card</option><option value="investment">Investment</option><option value="cash">Cash</option><option value="debt">Personal debt / amount owed</option></select></label><label>Current balance<input id="accountBalance" type="number" step="0.01"></label><div id="creditLimitWrap"><label>Credit limit<input id="accountCreditLimit" type="number" min="0" step="0.01" placeholder="2500"></label></div><div class="actions"><button id="saveAccountBtn" class="btn">Save</button><button id="deleteAccountBtn" class="btn danger hide">Delete</button><button class="btn secondary close-modal">Cancel</button></div></div></div>
 
 <div id="categoryModal" class="modal-bg hide"><div class="modal"><div class="section-title" id="categoryModalTitle">Add category</div><input id="editCategoryId" type="hidden"><label>Name<input id="categoryName" type="text" placeholder="Coffee"></label><label>Emoji<input id="categoryEmoji" type="text" maxlength="4" placeholder="☕"></label><label>Monthly target<input id="categoryBudget" type="number" min="0" step="0.01" placeholder="0"></label>
  <label>Budget type<select id="categoryKind">

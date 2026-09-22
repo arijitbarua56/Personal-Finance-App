@@ -10,7 +10,10 @@ const defaults={
   {id:"rbc-cheq",name:"RBC Chequing",type:"chequing",balance:0},
   {id:"ws-cheq",name:"Wealthsimple Chequing",type:"chequing",balance:0},
   {id:"td-credit",name:"TD Credit Card",type:"credit",balance:2490.30,creditLimit:2500},
-  {id:"rbc-credit",name:"RBC Credit Card",type:"credit",balance:0,creditLimit:0}
+  {id:"rbc-credit",name:"RBC Credit Card",type:"credit",balance:0,creditLimit:0},
+  {id:"friend-a",name:"Friend debt A",type:"debt",balance:989,debtKind:"friend"},
+  {id:"friend-b",name:"Friend debt B",type:"debt",balance:315,debtKind:"friend"},
+  {id:"glasses-debt",name:"Prescription glasses",type:"debt",balance:234,debtKind:"glasses"}
  ],
  categories:[
   {id:"groceries",name:"Groceries",emoji:"🛒",budget:275,quick:true,kind:"variable"},
@@ -22,15 +25,16 @@ const defaults={
   {id:"chatgpt",name:"ChatGPT Plus",emoji:"✦",budget:30,quick:false,kind:"fixed"},
   {id:"youtube",name:"YouTube Premium",emoji:"▶️",budget:14,quick:false,kind:"fixed"},
   {id:"amazon",name:"Amazon Prime + No Ads",emoji:"📦",budget:15,quick:false,kind:"fixed"},
-  {id:"temp-obligation",name:"Temporary Obligation",emoji:"📌",budget:150,quick:false,kind:"fixed"},
+  {id:"jdc",name:"JDC payment",emoji:"📌",budget:0,quick:false,kind:"exclude"},
   {id:"shopping",name:"Shopping / Personal",emoji:"🛍️",budget:40,quick:false,kind:"variable"},
   {id:"friend",name:"Friend Repayment",emoji:"🤝",budget:75,quick:false,kind:"obligation"},
   {id:"other",name:"Other",emoji:"•",budget:0,quick:false,kind:"exclude"}
  ],
  transactions:[],
- settings:{utilTarget:35,biweeklyPay:850,nextPayDate:"2026-10-01",savingPerPay:25,trackingStartDate:"2026-09-18"},
+ settings:{utilTarget:35,biweeklyPay:850,nextPayDate:"2026-10-01",savingPerPay:25,trackingStartDate:"2026-09-18",lumpSumAvailable:1000,transferReceived:false,transferDate:"2026-10-15",friendDebtDeadline:"2026-12-10",cardSpendCap:150},
  plan:[
   {id:"plan-1",date:"2026-10-01",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:850},
+  {id:"plan-jdc",date:"2026-10-01",type:"expense",description:"JDC payment",accountId:"td-cheq",amount:150},
   {id:"plan-2",date:"2026-10-01",type:"expense",description:"October rent",accountId:"td-cheq",amount:600},
   {id:"plan-3",date:"2026-10-15",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:850},
   {id:"plan-4",date:"2026-10-15",type:"income",description:"Dad transfer",accountId:"td-cheq",amount:1000},
@@ -49,11 +53,9 @@ const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random()
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
 function normalizeAccounts(list){
- const arr=Array.isArray(list)?list:[];
- return arr.map(a=>{
-   if(a.id==="td-credit"&&(!Number(a.creditLimit)||Number(a.creditLimit)<=0)) return {...a,creditLimit:2500};
-   return a;
- });
+ let arr=Array.isArray(list)?list.map(a=>({...a})):[];
+ const existing=new Set(arr.map(a=>a.id));defaults.accounts.forEach(d=>{if(!existing.has(d.id)&&["friend-a","friend-b","glasses-debt"].includes(d.id))arr.push(clone(d))});
+ return arr.map(a=>{if(a.id==="td-credit"&&(!Number(a.creditLimit)||Number(a.creditLimit)<=0))return {...a,creditLimit:2500};return a});
 }
 function migrateLegacy(raw){
  try{
@@ -93,23 +95,26 @@ function loadState(){
 }
 function save(localOnly=false){
  if(!Array.isArray(state.plan))state.plan=clone(defaults.plan);
+ if(!state.plan.some(p=>p.id==="plan-jdc"))state.plan.push({id:"plan-jdc",date:"2026-10-01",type:"expense",description:"JDC payment",accountId:"td-cheq",amount:150});
  if(!state.settings)state.settings=clone(defaults.settings);
  state.settings={...clone(defaults.settings),...state.settings};state.accounts=normalizeAccounts(state.accounts);
  if(!Array.isArray(state.categories))state.categories=clone(defaults.categories);
  const ids=new Set(state.categories.map(c=>c.id));defaults.categories.forEach(c=>{if(!ids.has(c.id))state.categories.push(clone(c))});
  state.categories=state.categories.map(c=>{const d=defaults.categories.find(x=>x.id===c.id);return {...(d||{}),...c,kind:c.kind||(d?.kind||"variable")}});
- localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();if(!localOnly)scheduleSync()}
+ if(!state.plan.some(p=>p.id==="plan-jdc"))state.plan.push({id:"plan-jdc",date:"2026-10-01",type:"expense",description:"JDC payment",accountId:"td-cheq",amount:150});localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();if(!localOnly)scheduleSync()}
 function account(id){return state.accounts.find(a=>a.id===id)}
 function category(id){return state.categories.find(c=>c.id===id)}
 function spendFor(catId){const ym=today().slice(0,7);return state.transactions.filter(t=>t.categoryId===catId&&t.type==="spend"&&t.date.startsWith(ym)).reduce((s,t)=>s+Number(t.amount),0)}
 function totalMonthSpend(){return state.transactions.filter(t=>t.type==="spend"&&t.date.startsWith(today().slice(0,7))).reduce((s,t)=>s+Number(t.amount),0)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 
-function render(){if(!Array.isArray(state.plan))state.plan=clone(defaults.plan);renderAccounts();renderQuick();renderBudgets();renderHistory();renderRecent();renderChips();renderFilters();renderSettingsLists();renderPaymentSelects();renderPlan();renderDebtTrajectory();renderDebtTargetSettings();renderMonthlyDashboard();renderIncomeSettings();renderAuth()}
+function render(){if(!Array.isArray(state.plan))state.plan=clone(defaults.plan);
+ if(!state.plan.some(p=>p.id==="plan-jdc"))state.plan.push({id:"plan-jdc",date:"2026-10-01",type:"expense",description:"JDC payment",accountId:"td-cheq",amount:150});renderAccounts();renderQuick();renderBudgets();renderHistory();renderRecent();renderChips();renderFilters();renderSettingsLists();renderPaymentSelects();renderPlan();renderDebtTrajectory();renderDebtTargetSettings();renderMonthlyDashboard();renderCategoryCaps();renderIncomeSettings();renderAuth()}
 
 function daysInMonth(y,m){return new Date(y,m,0).getDate()}
 function parseDateOnly(s){const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)}
 function addDays(d,n){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+n);return x}
+function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function countPaydaysInMonth(year,monthIndex){
  const anchor=parseDateOnly(state.settings?.nextPayDate||"2026-10-01");
  let d=new Date(anchor),end=new Date(year,monthIndex+1,0),start=new Date(year,monthIndex,1);
@@ -196,16 +201,31 @@ function renderMonthlyDashboard(){
  $("debtForecastSub").textContent="You currently have "+money(plannedDebt)+" in future card payments planned. These payments are separate from the living-budget numbers above.";
 }
 function renderIncomeSettings(){
- if(!$("biweeklyPayInput"))return;
- $("biweeklyPayInput").value=Number(state.settings?.biweeklyPay||850);
- $("nextPayDateInput").value=state.settings?.nextPayDate||"2026-10-01";
- if($("savingPerPayInput"))$("savingPerPayInput").value=Number(state.settings?.savingPerPay||25);
- if($("trackingStartInput"))$("trackingStartInput").value=state.settings?.trackingStartDate||"2026-09-18";
+ if(!$("biweeklyPayInput"))return;$("biweeklyPayInput").value=Number(state.settings?.biweeklyPay||850);$("nextPayDateInput").value=state.settings?.nextPayDate||"2026-10-01";if($("savingPerPayInput"))$("savingPerPayInput").value=Number(state.settings?.savingPerPay||25);if($("trackingStartInput"))$("trackingStartInput").value=state.settings?.trackingStartDate||"2026-09-18";if($("lumpSumInput"))$("lumpSumInput").value=Number(state.settings?.lumpSumAvailable||1000);if($("transferReceivedInput"))$("transferReceivedInput").checked=!!state.settings?.transferReceived;if($("transferDateInput"))$("transferDateInput").value=state.settings?.transferDate||"2026-10-15";if($("friendDeadlineInput"))$("friendDeadlineInput").value=state.settings?.friendDebtDeadline||"2026-12-10";if($("cardSpendCapInput"))$("cardSpendCapInput").value=Number(state.settings?.cardSpendCap||150);
+}
+
+
+function renderCategoryCaps(){
+ if(!$("categoryCapsList"))return;
+ const now=new Date(),next=nextPaydayOnOrAfter(now),days=Math.max(1,Math.ceil((next-now)/(86400000)));
+ const cash=cashOnHandNow(),prePay=plannedNonDebtExpensesBetween(now,next),available=Math.max(0,cash-prePay);
+ const cats=state.categories.filter(c=>c.kind==="variable"&&Number(c.budget)>0);
+ const totalWeight=cats.reduce((s,c)=>s+Number(c.budget||0),0)||1;
+ $("categoryCapsTitle").textContent="Recommended until "+next.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+ $("categoryCapsTotal").textContent=money(available);
+ const wrap=$("categoryCapsList");wrap.innerHTML="";
+ cats.forEach(c=>{
+   const cap=available*(Number(c.budget||0)/totalWeight),perDay=cap/days;
+   const r=document.createElement("div");r.className="cap-row";
+   r.innerHTML='<div><div class="cap-name">'+esc(c.emoji||"")+' '+esc(c.name)+'</div><div class="cap-meta">'+money(perDay)+'/day guide until payday</div></div><div class="cap-value">'+money(cap)+'</div>';
+   wrap.appendChild(r);
+ });
+ if(!cats.length)wrap.innerHTML='<div class="empty">Add day-to-day categories to get suggested caps.</div>';
 }
 
 function accountCard(a){
  const d=document.createElement("div");d.className="account-card";
- const cls=a.type==="credit"?(a.balance>0?"bad":"good"):"gold";
+ const cls=(a.type==="credit"||a.type==="debt")?(a.balance>0?"bad":"good"):"gold";
  let extra=esc(a.type);
  if(a.type==="credit"&&Number(a.creditLimit)>0){
    const available=Math.max(0,Number(a.creditLimit)-Number(a.balance));
@@ -216,13 +236,15 @@ function accountCard(a){
  d.addEventListener("click",()=>openAccount(a.id));return d;
 }
 function renderAccounts(){
- const cashWrap=$("homeCashAccounts"),creditWrap=$("homeCreditAccounts");
- if(!cashWrap||!creditWrap)return;
- cashWrap.innerHTML="";creditWrap.innerHTML="";
+ const cashWrap=$("homeCashAccounts"),creditWrap=$("homeCreditAccounts"),debtWrap=$("homeDebtAccounts");
+ if(!cashWrap||!creditWrap||!debtWrap)return;
+ cashWrap.innerHTML="";creditWrap.innerHTML="";debtWrap.innerHTML="";
  const cash=state.accounts.filter(a=>["chequing","savings","cash"].includes(a.type));
  const credit=state.accounts.filter(a=>a.type==="credit");
+ const debts=state.accounts.filter(a=>a.type==="debt");
  if(!cash.length)cashWrap.innerHTML='<div class="account-empty">No cash accounts.</div>';else cash.forEach(a=>cashWrap.appendChild(accountCard(a)));
  if(!credit.length)creditWrap.innerHTML='<div class="account-empty">No credit cards.</div>';else credit.forEach(a=>creditWrap.appendChild(accountCard(a)));
+ if(!debts.length)debtWrap.innerHTML='<div class="account-empty">No other debts.</div>';else debts.forEach(a=>debtWrap.appendChild(accountCard(a)));
 }
 function renderQuick(){
  const wrap=$("quickActions");wrap.innerHTML="";const qs=state.categories.filter(c=>c.quick);
@@ -251,7 +273,7 @@ function renderHistory(){const w=$("historyList");w.innerHTML="";const fa=$("fil
 function renderChips(){
  const aw=$("accountChips"),cw=$("categoryChips");aw.innerHTML="";cw.innerHTML="";
  if(!account(selectedAccountId))selectedAccountId=state.accounts[0]?.id||"";if(!category(selectedCategoryId))selectedCategoryId=state.categories[0]?.id||"";
- state.accounts.forEach(a=>{const b=document.createElement("button");b.className="chip"+(a.id===selectedAccountId?" active":"");b.textContent=a.name;b.onclick=()=>{selectedAccountId=a.id;renderChips()};aw.appendChild(b)});
+ state.accounts.filter(a=>a.type!=="debt").forEach(a=>{const b=document.createElement("button");b.className="chip"+(a.id===selectedAccountId?" active":"");b.textContent=a.name;b.onclick=()=>{selectedAccountId=a.id;renderChips()};aw.appendChild(b)});
  state.categories.forEach(c=>{const b=document.createElement("button");b.className="chip"+(c.id===selectedCategoryId?" active":"");b.textContent=(c.emoji?c.emoji+" ":"")+c.name;b.onclick=()=>{selectedCategoryId=c.id;renderChips()};cw.appendChild(b)});
 }
 function renderFilters(){
@@ -264,7 +286,7 @@ function renderSettingsLists(){
  const cw=$("settingsCategories");cw.innerHTML="";
  state.categories.forEach(c=>{const r=document.createElement("div");r.className="list-row";r.innerHTML='<div><div class="list-title">'+esc(c.emoji||"")+' '+esc(c.name)+'</div><div class="list-meta">'+esc(c.kind||"variable")+' · Target '+money(c.budget)+' · Quick '+(c.quick?"Yes":"No")+'</div></div><button class="btn secondary small">Edit</button>';r.querySelector("button").onclick=()=>openCategory(c.id);cw.appendChild(r)});
 }
-function renderPaymentSelects(){const f=$("paymentFrom"),t=$("paymentTo");f.innerHTML="";t.innerHTML="";state.accounts.filter(a=>a.type!=="credit").forEach(a=>f.add(new Option(a.name,a.id)));state.accounts.filter(a=>a.type==="credit").forEach(a=>t.add(new Option(a.name,a.id)))}
+function renderPaymentSelects(){const f=$("paymentFrom"),t=$("paymentTo");f.innerHTML="";t.innerHTML="";state.accounts.filter(a=>a.type!=="credit"&&a.type!=="debt").forEach(a=>f.add(new Option(a.name,a.id)));state.accounts.filter(a=>a.type==="credit").forEach(a=>t.add(new Option(a.name,a.id)))}
 function renderAuth(){$("signedOut").classList.toggle("hide",!!user);$("signedIn").classList.toggle("hide",!user);if(user)$("signedEmail").textContent=user.email||""}
 
 
@@ -331,74 +353,29 @@ function projectedPlan(){
  return {cash,debt,balances};
 }
 
-function tdCard(){
- return state.accounts.find(a=>a.id==="td-credit")||state.accounts.find(a=>a.type==="credit");
-}
-function paycheckDates(count=10){
- const now=new Date();
- let d=nextPaydayOnOrAfter(now);
- const out=[];
- for(let i=0;i<count;i++){out.push(new Date(d));d=addDays(d,14)}
- return out;
-}
-function monthlyLivingReserveFor(date){
- const model=regularMonthModel(date.getFullYear(),date.getMonth());
- const pays=Math.max(1,model.paydays);
- return {
-   fixedPerPay:model.fixed/pays,
-   variablePerPay:model.living/pays,
-   savingsPerPay:Number(state.settings?.savingPerPay||25),
-   income:Number(state.settings?.biweeklyPay||850)
- };
-}
-function renderPaycheckDebtPlan(){
- if(!$("paycheckDebtPlan"))return;
- const card=tdCard();
- if(!card){$("paycheckDebtPlan").innerHTML='<div class="empty">Add a credit card to build a payoff plan.</div>';return}
- if(!Number(card.creditLimit)||Number(card.creditLimit)<=0)card.creditLimit=2500;
- const limit=Number(card.creditLimit),targetPct=Number(state.settings?.utilTarget??35),targetBal=limit*(targetPct/100);
- let debt=Math.max(0,Number(card.balance)||0);
- const util=limit>0?debt/limit*100:0;
- $("currentTdUtil").textContent=util.toFixed(1)+"%";
- $("currentTdUtil").className="account-value "+(util<targetPct?"good":"bad");
- $("currentTdDebt").textContent=money(debt)+" / "+money(limit);
- $("tdTargetBalance").textContent=money(targetBal);
-
- const wrap=$("paycheckDebtPlan");wrap.innerHTML="";
- if(debt<targetBal){
-   $("paycheckPlanStatus").textContent="Target reached";$("paycheckPlanStatus").className="badge ok";
-   wrap.innerHTML='<div class="empty">Your TD balance is already below the utilization target.</div>';return;
- }
- $("paycheckPlanStatus").textContent="Target < "+targetPct+"%";$("paycheckPlanStatus").className="badge warn";
-
- const dates=paycheckDates(10);
- let reached=false;
- dates.forEach(d=>{
-   if(reached)return;
-   const a=monthlyLivingReserveFor(d);
-   const reserve=a.fixedPerPay+a.variablePerPay+a.savingsPerPay;
-   const safeDebt=Math.max(0,a.income-reserve);
-   const need=Math.max(0,debt-targetBal+0.01); // ensure strictly below target
-   const payment=Math.min(safeDebt,need);
-   const after=Math.max(0,debt-payment);
-   const afterUtil=limit>0?after/limit*100:0;
-   const keep=Math.max(0,a.income-payment);
-   const row=document.createElement("div");row.className="paycheck-row";
-   row.innerHTML='<div class="paycheck-head"><div><div class="list-title">'+d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})+' paycheck</div><div class="paycheck-date">'+money(a.income)+' estimated take-home</div></div><div class="paycheck-payment">'+money(payment)+' → TD</div></div>'+
-   '<div class="allocation-grid">'+
-   '<div class="allocation-cell"><div class="allocation-label">Bills reserve</div><div class="allocation-value">'+money(a.fixedPerPay)+'</div></div>'+
-   '<div class="allocation-cell"><div class="allocation-label">Day-to-day</div><div class="allocation-value">'+money(a.variablePerPay)+'</div></div>'+
-   '<div class="allocation-cell"><div class="allocation-label">Savings</div><div class="allocation-value">'+money(a.savingsPerPay)+'</div></div>'+
-   '<div class="allocation-cell"><div class="allocation-label">Left after TD</div><div class="allocation-value">'+money(keep)+'</div></div>'+
-   '</div><div class="sub" style="margin-top:7px">TD after payment: '+money(after)+' · '+afterUtil.toFixed(1)+'% utilization · '+(payment/a.income*100).toFixed(0)+'% of this paycheck to the card</div>';
-   wrap.appendChild(row);
-   debt=after;
-   if(afterUtil<targetPct){reached=true}
- });
- if(!reached){
-   const note=document.createElement("div");note.className="empty";note.textContent="At the current income and living-cost assumptions, the target takes longer than the paychecks shown.";wrap.appendChild(note);
- }
-}
+function tdCard(){return state.accounts.find(a=>a.id==="td-credit")||state.accounts.find(a=>a.type==="credit")}
+function friendDebts(){return state.accounts.filter(a=>a.type==="debt"&&a.debtKind==="friend")}
+function glassesDebt(){return state.accounts.find(a=>a.type==="debt"&&a.debtKind==="glasses")}
+function rentAmount(){return Number(state.categories.find(c=>c.id==="rent")?.budget||600)}
+function nonRentFixedMonthly(){return state.categories.filter(c=>(c.kind==="fixed"||c.kind==="obligation")&&c.id!=="rent"&&c.id!=="friend").reduce((s,c)=>s+Math.max(0,Number(c.budget)||0),0)}
+function paycheckDates(count=16){const now=new Date();let d=nextPaydayOnOrAfter(now);const out=[];for(let i=0;i<count;i++){out.push(new Date(d));d=addDays(d,14)}return out}
+function isRentReservePaycheck(d){if(d.getDate()===1)return true;const next=addDays(d,14),firstNext=new Date(d.getFullYear(),d.getMonth()+1,1);return d<firstNext&&next>=firstNext}
+function paycheckReserve(d){const paydays=Math.max(1,countPaydaysInMonth(d.getFullYear(),d.getMonth()));const income=Number(state.settings?.biweeklyPay||850),rent=isRentReservePaycheck(d)?rentAmount():0,bills=nonRentFixedMonthly()/paydays+rent,dayToDay=variableTargetTotal()/paydays,savings=Number(state.settings?.savingPerPay||25);return {income,bills,dayToDay,savings,debtAvailable:Math.max(0,income-bills-dayToDay-savings),rentReserve:rent>0}}
+function transferEffectiveForDate(d){return !!state.settings?.transferReceived || d>=parseDateOnly(state.settings?.transferDate||"2026-10-15")}
+function recommendedLumpAllocation(){const total=Number(state.settings?.lumpSumAvailable||1000);let left=total;const out=[];const glasses=glassesDebt();if(glasses&&glasses.balance>0&&left>0){const x=Math.min(left,Number(glasses.balance));out.push({id:glasses.id,name:glasses.name,amount:x,type:"other"});left-=x}const friends=friendDebts().slice().sort((a,b)=>Number(a.balance)-Number(b.balance));if(friends[0]&&friends[0].balance>0&&left>0){const x=Math.min(left,Number(friends[0].balance));out.push({id:friends[0].id,name:friends[0].name,amount:x,type:"other"});left-=x}const card=tdCard();if(card&&left>0){const x=Math.min(left,400,Math.max(0,Number(card.balance)));out.push({id:card.id,name:card.name,amount:x,type:"td"});left-=x}const largest=friends.slice().sort((a,b)=>Number(b.balance)-Number(a.balance))[0];if(largest&&left>0){const already=out.filter(o=>o.id===largest.id).reduce((s,o)=>s+o.amount,0),x=Math.min(left,Math.max(0,Number(largest.balance)-already));if(x>0){out.push({id:largest.id,name:largest.name,amount:x,type:"other"});left-=x}}return {total,items:out,left}}
+function renderLumpSumAllocation(){if(!$("lumpSumAllocation"))return;const rec=recommendedLumpAllocation(),wrap=$("lumpSumAllocation");wrap.innerHTML="";
+ const badge=$("transferStatusBadge");if(badge){if(state.settings?.transferReceived){badge.textContent="Received";badge.className="badge ok"}else{badge.textContent="Expected "+parseDateOnly(state.settings?.transferDate||"2026-10-15").toLocaleDateString(undefined,{month:"short",day:"numeric"});badge.className="badge warn"}}
+ rec.items.forEach(x=>{const r=document.createElement("div");r.className="debt-allocation-row";r.innerHTML='<div><div class="list-title">'+esc(x.name)+'</div><div class="debt-tag">'+(x.type==="td"?"Creates card headroom":"Clear/reduce balance")+'</div></div><div class="amount '+(x.type==="td"?"good":"")+'">'+money(x.amount)+'</div>';wrap.appendChild(r)});if(rec.left>0){const r=document.createElement("div");r.className="debt-allocation-row";r.innerHTML='<div><div class="list-title">Keep unallocated</div><div class="debt-tag">Extra buffer</div></div><div class="amount">'+money(rec.left)+'</div>';wrap.appendChild(r)}}
+function projectedDebtsBase(){const balances={};state.accounts.filter(a=>a.type==="credit"||a.type==="debt").forEach(a=>balances[a.id]=Math.max(0,Number(a.balance)||0));return balances}
+function applyLumpToBalances(balances){recommendedLumpAllocation().items.forEach(x=>{if(balances[x.id]!=null)balances[x.id]=Math.max(0,balances[x.id]-x.amount)});return balances}
+function projectedDebtsAfterLump(){const balances=projectedDebtsBase();if(state.settings?.transferReceived)applyLumpToBalances(balances);return balances}
+function currentMonthTDSpend(){const ym=today().slice(0,7),card=tdCard();if(!card)return 0;return state.transactions.filter(t=>t.accountId===card.id&&t.type==="spend"&&String(t.date||"").startsWith(ym)).reduce((s,t)=>s+Number(t.amount||0),0)}
+function renderCardGuardrail(){if(!$("cardSpendCap"))return;const cap=Number(state.settings?.cardSpendCap||150),used=currentMonthTDSpend(),rem=Math.max(0,cap-used);$("cardSpendCap").textContent=money(cap);$("cardSpendUsed").textContent=money(used);$("cardSpendRemaining").textContent=money(rem);$("cardSpendRemaining").className="mini-value "+(rem<=0?"bad":"good")}
+function renderPaycheckDebtPlan(){if(!$("paycheckDebtPlan"))return;renderLumpSumAllocation();renderCardGuardrail();const card=tdCard();if(!card){$("paycheckDebtPlan").innerHTML='<div class="empty">Add a TD credit-card account.</div>';return}if(!Number(card.creditLimit)||Number(card.creditLimit)<=0)card.creditLimit=2500;const limit=Number(card.creditLimit),targetPct=Number(state.settings?.utilTarget??35),targetBal=limit*(targetPct/100),balances=projectedDebtsBase();let lumpApplied=!!state.settings?.transferReceived;if(lumpApplied)applyLumpToBalances(balances);let tdDebt=Math.max(0,(balances[card.id] ?? Number(card.balance) ?? 0));const util=limit>0?tdDebt/limit*100:0;$("currentTdUtil").textContent=util.toFixed(1)+"%";$("currentTdUtil").className="account-value "+(util<targetPct?"good":"bad");$("currentTdDebt").textContent=money(tdDebt)+" / "+money(limit);$("tdTargetBalance").textContent=money(targetBal);const friendIds=friendDebts().map(a=>a.id);let friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0);const wrap=$("paycheckDebtPlan");wrap.innerHTML="";if(friendRemain<=0&&tdDebt<targetBal){$("paycheckPlanStatus").textContent="Targets reached";$("paycheckPlanStatus").className="badge ok";wrap.innerHTML='<div class="empty">Friend debt is cleared and TD is below the utilization target.</div>';return}$("paycheckPlanStatus").textContent="Friends by Dec · TD < "+targetPct+"%";$("paycheckPlanStatus").className="badge warn";const deadline=parseDateOnly(state.settings?.friendDebtDeadline||"2026-12-10"),dates=paycheckDates(16);let reached=false;dates.forEach(d=>{if(reached)return;
+   if(!lumpApplied&&transferEffectiveForDate(d)){applyLumpToBalances(balances);lumpApplied=true;tdDebt=Math.max(0,balances[card.id]||tdDebt);friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0)}
+   const rsv=paycheckReserve(d);let available=rsv.debtAvailable,friendPay=0,tdPay=0;
+   const beforeTransfer=!lumpApplied;
+   if(beforeTransfer)available=0;if(friendRemain>0&&available>0){const eligibleDates=dates.filter(x=>x>=d&&x<=deadline&&!isRentReservePaycheck(x)),slots=Math.max(1,eligibleDates.length),required=Math.ceil((friendRemain/slots)*100)/100;friendPay=Math.min(available,friendRemain,required);friendRemain=Math.max(0,friendRemain-friendPay);available-=friendPay}if(available>0&&tdDebt>targetBal){const need=Math.max(0,tdDebt-targetBal+0.01);tdPay=Math.min(available,need);tdDebt=Math.max(0,tdDebt-tdPay);available-=tdPay}const afterUtil=limit>0?tdDebt/limit*100:0,totalDebtPay=friendPay+tdPay,row=document.createElement("div");row.className="paycheck-row";row.innerHTML='<div class="paycheck-head"><div><div class="list-title">'+d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})+' paycheck'+(rsv.rentReserve?' · rent reserve':'')+(rsv.oneOff>0?' · one-off bills':'')+(beforeTransfer?' · cash-preservation mode':'')+'</div><div class="paycheck-date">'+money(rsv.income)+' estimated take-home</div></div><div class="paycheck-payment">'+money(totalDebtPay)+' → debt</div></div><div class="allocation-grid"><div class="allocation-cell"><div class="allocation-label">Bills'+(rsv.rentReserve?' + rent':'')+'</div><div class="allocation-value">'+money(rsv.bills)+'</div></div><div class="allocation-cell"><div class="allocation-label">Day-to-day</div><div class="allocation-value">'+money(rsv.dayToDay)+'</div></div><div class="allocation-cell"><div class="allocation-label">Friend debt</div><div class="allocation-value">'+money(friendPay)+'</div></div><div class="allocation-cell"><div class="allocation-label">TD payment</div><div class="allocation-value">'+money(tdPay)+'</div></div></div><div class="sub" style="margin-top:7px">Savings '+money(rsv.savings)+' · TD after plan '+money(tdDebt)+' ('+afterUtil.toFixed(1)+'%) · Friend debt left '+money(friendRemain)+'</div>';wrap.appendChild(row);if(friendRemain<=0&&afterUtil<targetPct)reached=true})}
 
 function renderPlan(){
  if(!$("planList")) return;
@@ -478,6 +455,7 @@ $("saveCategoryBtn").onclick=()=>{const name=$("categoryName").value.trim();if(!
 $("deleteCategoryBtn").onclick=()=>{const id=$("editCategoryId").value;if(!id)return;if(!confirm("Delete this category?"))return;state.categories=state.categories.filter(c=>c.id!==id);save();$("categoryModal").classList.add("hide")};
 document.querySelectorAll(".close-modal").forEach(b=>b.onclick=()=>b.closest(".modal-bg").classList.add("hide"));
 
+$("saveDebtStrategyBtn").onclick=()=>{const lump=Number($("lumpSumInput").value),cap=Number($("cardSpendCapInput").value),deadline=$("friendDeadlineInput").value,tdate=$("transferDateInput").value,received=$("transferReceivedInput").checked;if(!Number.isFinite(lump)||lump<0||!Number.isFinite(cap)||cap<0||!deadline||!tdate)return;state.settings=state.settings||{};state.settings.lumpSumAvailable=lump;state.settings.cardSpendCap=cap;state.settings.friendDebtDeadline=deadline;state.settings.transferDate=tdate;state.settings.transferReceived=received;save();};
 $("saveBudgetAssumptionsBtn").onclick=()=>{
  const d=$("trackingStartInput").value,s=Number($("savingPerPayInput").value);
  if(!d||!Number.isFinite(s)||s<0)return;
