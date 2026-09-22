@@ -70,7 +70,7 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
 </head>
 <body>
 <div class="app">
-<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.10 · explicit transfer-aware plan</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
+<header><div><h1>Money Tracker</h1><div class="sub"><span id="todayLabel"></span> · V5.12 · deadline-driven debt plan</div></div><span id="cloudBadge" class="badge warn">Not signed in</span></header>
 <main>
 <section id="page-home" class="page active">
 
@@ -177,7 +177,7 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
    <div class="section-head">
      <div>
        <div class="section-title">Paycheck → debt plan</div>
-       <div class="sub">Reserves rent only on the paycheck that must cover the next 1st, then uses safe debt money for friend debt first and TD second.</div>
+       <div class="sub">Actively allocates each paycheck toward your deadlines: friend debts by December, then TD below 35% by January–February.</div>
      </div>
      <span id="paycheckPlanStatus" class="badge">Calculating</span>
    </div>
@@ -242,6 +242,8 @@ label{display:block;font-size:12px;color:#bbb;margin-bottom:10px}input,select{wi
   <div class="row">
    <label>Monthly TD spending cap<input id="cardSpendCapInput" type="number" min="0" step="0.01"></label>
    <label>Friend-debt target date<input id="friendDeadlineInput" type="date"></label>
+  <label>TD utilization target date<input id="tdDeadlineInput" type="date"></label>
+  <label>Extra cash buffer per paycheck<input id="paycheckBufferInput" type="number" min="0" step="0.01"></label>
   </div>
   <div class="sub" style="margin-bottom:10px">Until you mark the transfer received, the plan prioritizes rent, JDC, bills and liquidity. The aggressive debt split activates on/after the expected date.</div>
   <button id="saveDebtStrategyBtn" class="btn">Save debt strategy</button>

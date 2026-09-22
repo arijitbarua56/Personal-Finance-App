@@ -31,7 +31,7 @@ const defaults={
   {id:"other",name:"Other",emoji:"•",budget:0,quick:false,kind:"exclude"}
  ],
  transactions:[],
- settings:{utilTarget:35,biweeklyPay:850,nextPayDate:"2026-10-01",savingPerPay:25,trackingStartDate:"2026-09-18",lumpSumAvailable:1000,transferReceived:false,transferDate:"2026-10-15",friendDebtDeadline:"2026-12-10",cardSpendCap:150},
+ settings:{utilTarget:35,biweeklyPay:850,nextPayDate:"2026-10-01",savingPerPay:25,trackingStartDate:"2026-09-18",lumpSumAvailable:1000,transferReceived:false,transferDate:"2026-10-15",friendDebtDeadline:"2026-12-10",tdTargetDeadline:"2027-02-11",cardSpendCap:150,paycheckBuffer:75},
  plan:[
   {id:"plan-1",date:"2026-10-01",type:"income",description:"Paycheck (estimate)",accountId:"td-cheq",amount:850},
   {id:"plan-jdc",date:"2026-10-01",type:"expense",description:"JDC payment",accountId:"td-cheq",amount:150},
@@ -201,7 +201,7 @@ function renderMonthlyDashboard(){
  $("debtForecastSub").textContent="You currently have "+money(plannedDebt)+" in future card payments planned. These payments are separate from the living-budget numbers above.";
 }
 function renderIncomeSettings(){
- if(!$("biweeklyPayInput"))return;$("biweeklyPayInput").value=Number(state.settings?.biweeklyPay||850);$("nextPayDateInput").value=state.settings?.nextPayDate||"2026-10-01";if($("savingPerPayInput"))$("savingPerPayInput").value=Number(state.settings?.savingPerPay||25);if($("trackingStartInput"))$("trackingStartInput").value=state.settings?.trackingStartDate||"2026-09-18";if($("lumpSumInput"))$("lumpSumInput").value=Number(state.settings?.lumpSumAvailable||1000);if($("transferReceivedInput"))$("transferReceivedInput").checked=!!state.settings?.transferReceived;if($("transferDateInput"))$("transferDateInput").value=state.settings?.transferDate||"2026-10-15";if($("friendDeadlineInput"))$("friendDeadlineInput").value=state.settings?.friendDebtDeadline||"2026-12-10";if($("cardSpendCapInput"))$("cardSpendCapInput").value=Number(state.settings?.cardSpendCap||150);
+ if(!$("biweeklyPayInput"))return;$("biweeklyPayInput").value=Number(state.settings?.biweeklyPay||850);$("nextPayDateInput").value=state.settings?.nextPayDate||"2026-10-01";if($("savingPerPayInput"))$("savingPerPayInput").value=Number(state.settings?.savingPerPay||25);if($("trackingStartInput"))$("trackingStartInput").value=state.settings?.trackingStartDate||"2026-09-18";if($("lumpSumInput"))$("lumpSumInput").value=Number(state.settings?.lumpSumAvailable||1000);if($("transferReceivedInput"))$("transferReceivedInput").checked=!!state.settings?.transferReceived;if($("transferDateInput"))$("transferDateInput").value=state.settings?.transferDate||"2026-10-15";if($("friendDeadlineInput"))$("friendDeadlineInput").value=state.settings?.friendDebtDeadline||"2026-12-10";if($("tdDeadlineInput"))$("tdDeadlineInput").value=state.settings?.tdTargetDeadline||"2027-02-11";if($("cardSpendCapInput"))$("cardSpendCapInput").value=Number(state.settings?.cardSpendCap||150);if($("paycheckBufferInput"))$("paycheckBufferInput").value=Number(state.settings?.paycheckBuffer||75);
 }
 
 
@@ -371,27 +371,86 @@ function applyLumpToBalances(balances){recommendedLumpAllocation().items.forEach
 function projectedDebtsAfterLump(){const balances=projectedDebtsBase();if(state.settings?.transferReceived)applyLumpToBalances(balances);return balances}
 function currentMonthTDSpend(){const ym=today().slice(0,7),card=tdCard();if(!card)return 0;return state.transactions.filter(t=>t.accountId===card.id&&t.type==="spend"&&String(t.date||"").startsWith(ym)).reduce((s,t)=>s+Number(t.amount||0),0)}
 function renderCardGuardrail(){if(!$("cardSpendCap"))return;const cap=Number(state.settings?.cardSpendCap||150),used=currentMonthTDSpend(),rem=Math.max(0,cap-used);$("cardSpendCap").textContent=money(cap);$("cardSpendUsed").textContent=money(used);$("cardSpendRemaining").textContent=money(rem);$("cardSpendRemaining").className="mini-value "+(rem<=0?"bad":"good")}
-function renderPaycheckDebtPlan(){if(!$("paycheckDebtPlan"))return;renderLumpSumAllocation();renderCardGuardrail();const card=tdCard();if(!card){$("paycheckDebtPlan").innerHTML='<div class="empty">Add a TD credit-card account.</div>';return}if(!Number(card.creditLimit)||Number(card.creditLimit)<=0)card.creditLimit=2500;const limit=Number(card.creditLimit),targetPct=Number(state.settings?.utilTarget??35),targetBal=limit*(targetPct/100),balances=projectedDebtsBase();let lumpApplied=!!state.settings?.transferReceived;if(lumpApplied)applyLumpToBalances(balances);let tdDebt=Math.max(0,(balances[card.id] ?? Number(card.balance) ?? 0));const util=limit>0?tdDebt/limit*100:0;$("currentTdUtil").textContent=util.toFixed(1)+"%";$("currentTdUtil").className="account-value "+(util<targetPct?"good":"bad");$("currentTdDebt").textContent=money(tdDebt)+" / "+money(limit);$("tdTargetBalance").textContent=money(targetBal);const friendIds=friendDebts().map(a=>a.id);let friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0);const wrap=$("paycheckDebtPlan");wrap.innerHTML="";
- if(state.settings?.transferReceived){
-   const rec=recommendedLumpAllocation();
-   const box=document.createElement("div");box.className="paycheck-row";
-   const tdPart=rec.items.filter(x=>x.type==="td").reduce((s,x)=>s+x.amount,0);
-   const friendPart=rec.items.filter(x=>x.type!=="td"&&state.accounts.find(a=>a.id===x.id)?.debtKind==="friend").reduce((s,x)=>s+x.amount,0);
-   const glassesPart=rec.items.filter(x=>state.accounts.find(a=>a.id===x.id)?.debtKind==="glasses").reduce((s,x)=>s+x.amount,0);
-   box.innerHTML='<div class="paycheck-head"><div><div class="list-title">Family transfer applied</div><div class="paycheck-date">'+money(rec.total)+' received</div></div><div class="paycheck-payment">'+money(tdPart)+' → TD</div></div>'+
-   '<div class="allocation-grid">'+
-   '<div class="allocation-cell"><div class="allocation-label">Glasses</div><div class="allocation-value">'+money(glassesPart)+'</div></div>'+
-   '<div class="allocation-cell"><div class="allocation-label">Friend debt</div><div class="allocation-value">'+money(friendPart)+'</div></div>'+
-   '<div class="allocation-cell"><div class="allocation-label">TD</div><div class="allocation-value">'+money(tdPart)+'</div></div>'+
-   '<div class="allocation-cell"><div class="allocation-label">Unallocated</div><div class="allocation-value">'+money(rec.left)+'</div></div>'+
-   '</div>';
-   wrap.appendChild(box);
- }if(friendRemain<=0&&tdDebt<targetBal){$("paycheckPlanStatus").textContent="Targets reached";$("paycheckPlanStatus").className="badge ok";wrap.innerHTML='<div class="empty">Friend debt is cleared and TD is below the utilization target.</div>';return}$("paycheckPlanStatus").textContent="Friends by Dec · TD < "+targetPct+"%";$("paycheckPlanStatus").className="badge warn";const deadline=parseDateOnly(state.settings?.friendDebtDeadline||"2026-12-10"),dates=paycheckDates(16);let reached=false;dates.forEach(d=>{if(reached)return;
-   if(!lumpApplied&&transferEffectiveForDate(d)){applyLumpToBalances(balances);lumpApplied=true;tdDebt=Math.max(0,balances[card.id]||tdDebt);friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0)}
-   const rsv=paycheckReserve(d);let available=rsv.debtAvailable,friendPay=0,tdPay=0;
-   const beforeTransfer=!state.settings?.transferReceived;
-   if(beforeTransfer)available=0;if(friendRemain>0&&available>0){const eligibleDates=dates.filter(x=>x>=d&&x<=deadline&&!isRentReservePaycheck(x)),slots=Math.max(1,eligibleDates.length),required=Math.ceil((friendRemain/slots)*100)/100;friendPay=Math.min(available,friendRemain,required);friendRemain=Math.max(0,friendRemain-friendPay);available-=friendPay}if(available>0&&tdDebt>targetBal){const need=Math.max(0,tdDebt-targetBal+0.01);tdPay=Math.min(available,need);tdDebt=Math.max(0,tdDebt-tdPay);available-=tdPay}const afterUtil=limit>0?tdDebt/limit*100:0,totalDebtPay=friendPay+tdPay,row=document.createElement("div");row.className="paycheck-row";row.innerHTML='<div class="paycheck-head"><div><div class="list-title">'+d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})+' paycheck'+(rsv.rentReserve?' · rent reserve':'')+(rsv.oneOff>0?' · one-off bills':'')+(beforeTransfer?' · cash-preservation mode':'')+'</div><div class="paycheck-date">'+money(rsv.income)+' estimated take-home</div></div><div class="paycheck-payment">'+money(totalDebtPay)+' → debt</div></div><div class="allocation-grid"><div class="allocation-cell"><div class="allocation-label">Bills'+(rsv.rentReserve?' + rent':'')+'</div><div class="allocation-value">'+money(rsv.bills)+'</div></div><div class="allocation-cell"><div class="allocation-label">Day-to-day</div><div class="allocation-value">'+money(rsv.dayToDay)+'</div></div><div class="allocation-cell"><div class="allocation-label">Friend debt</div><div class="allocation-value">'+money(friendPay)+'</div></div><div class="allocation-cell"><div class="allocation-label">TD payment</div><div class="allocation-value">'+money(tdPay)+'</div></div></div><div class="sub" style="margin-top:7px">Savings '+money(rsv.savings)+' · TD after plan '+money(tdDebt)+' ('+afterUtil.toFixed(1)+'%) · Friend debt left '+money(friendRemain)+'</div>';wrap.appendChild(row);if(friendRemain<=0&&afterUtil<targetPct)reached=true})}
+function renderPaycheckDebtPlan(){
+ if(!$("paycheckDebtPlan"))return;
+ renderLumpSumAllocation();renderCardGuardrail();
+ const card=tdCard();if(!card){$("paycheckDebtPlan").innerHTML='<div class="empty">Add a TD credit-card account.</div>';return}
+ if(!Number(card.creditLimit)||Number(card.creditLimit)<=0)card.creditLimit=2500;
+ const limit=Number(card.creditLimit),targetPct=Number(state.settings?.utilTarget??35),targetBal=limit*(targetPct/100);
+ const balances=projectedDebtsBase();
+ let lumpApplied=!!state.settings?.transferReceived;if(lumpApplied)applyLumpToBalances(balances);
+ let tdDebt=Math.max(0,balances[card.id]??Number(card.balance)||0);
+ const friendIds=friendDebts().map(a=>a.id);
+ let friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0);
 
+ const util=limit>0?tdDebt/limit*100:0;
+ $("currentTdUtil").textContent=util.toFixed(1)+"%";$("currentTdUtil").className="account-value "+(util<targetPct?"good":"bad");
+ $("currentTdDebt").textContent=money(tdDebt)+" / "+money(limit);$("tdTargetBalance").textContent=money(targetBal);
+
+ const wrap=$("paycheckDebtPlan");wrap.innerHTML="";
+ if(state.settings?.transferReceived){
+   const rec=recommendedLumpAllocation(),box=document.createElement("div"),tdPart=rec.items.filter(x=>x.type==="td").reduce((s,x)=>s+x.amount,0),friendPart=rec.items.filter(x=>x.type!=="td"&&state.accounts.find(a=>a.id===x.id)?.debtKind==="friend").reduce((s,x)=>s+x.amount,0),glassesPart=rec.items.filter(x=>state.accounts.find(a=>a.id===x.id)?.debtKind==="glasses").reduce((s,x)=>s+x.amount,0);
+   box.className="paycheck-row";box.innerHTML='<div class="paycheck-head"><div><div class="list-title">Family transfer applied</div><div class="paycheck-date">'+money(rec.total)+' received</div></div><div class="paycheck-payment">'+money(tdPart)+' → TD</div></div><div class="allocation-grid"><div class="allocation-cell"><div class="allocation-label">Glasses</div><div class="allocation-value">'+money(glassesPart)+'</div></div><div class="allocation-cell"><div class="allocation-label">Friend debt</div><div class="allocation-value">'+money(friendPart)+'</div></div><div class="allocation-cell"><div class="allocation-label">TD</div><div class="allocation-value">'+money(tdPart)+'</div></div><div class="allocation-cell"><div class="allocation-label">Unallocated</div><div class="allocation-value">'+money(rec.left)+'</div></div></div>';wrap.appendChild(box);
+ }
+
+ const friendDeadline=parseDateOnly(state.settings?.friendDebtDeadline||"2026-12-10");
+ const tdDeadline=parseDateOnly(state.settings?.tdTargetDeadline||"2027-02-11");
+ const dates=paycheckDates(20);
+ $("paycheckPlanStatus").textContent="Friends by "+friendDeadline.toLocaleDateString(undefined,{month:"short"})+" · TD < "+targetPct+"% by "+tdDeadline.toLocaleDateString(undefined,{month:"short"});
+ $("paycheckPlanStatus").className="badge warn";
+
+ let reached=false;
+ dates.forEach(d=>{
+   if(reached)return;
+   if(!lumpApplied&&state.settings?.transferReceived){applyLumpToBalances(balances);lumpApplied=true;tdDebt=Math.max(0,balances[card.id]||tdDebt);friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0)}
+   const rsv=paycheckReserve(d);
+   let available=Math.max(0,rsv.debtAvailable-Number(state.settings?.paycheckBuffer||75));
+   let friendPay=0,tdPay=0;
+
+   // Required friend payment to hit December deadline.
+   if(friendRemain>0){
+     const futureFriendDates=dates.filter(x=>x>=d&&x<=friendDeadline);
+     const slots=Math.max(1,futureFriendDates.length);
+     const requiredFriend=Math.ceil((friendRemain/slots)*100)/100;
+     friendPay=Math.min(available,friendRemain,requiredFriend);
+     friendRemain=Math.max(0,friendRemain-friendPay);
+     available-=friendPay;
+   }
+
+   // Required TD payment to hit utilization deadline. Before friend deadline,
+   // leftover still goes to TD, but friend required amount is protected first.
+   if(tdDebt>targetBal&&available>0){
+     const futureTdDates=dates.filter(x=>x>=d&&x<=tdDeadline);
+     const tdSlots=Math.max(1,futureTdDates.length);
+     const tdNeed=Math.max(0,tdDebt-targetBal+0.01);
+     const requiredTd=Math.ceil((tdNeed/tdSlots)*100)/100;
+     tdPay=Math.min(available,tdNeed,Math.max(requiredTd,available));
+     tdDebt=Math.max(0,tdDebt-tdPay);
+     available-=tdPay;
+   }
+
+   const afterUtil=limit>0?tdDebt/limit*100:0;
+   const totalDebtPay=friendPay+tdPay;
+   const friendDeadlineRisk=friendRemain>0&&d>friendDeadline;
+   const tdDeadlineRisk=afterUtil>=targetPct&&d>tdDeadline;
+
+   const row=document.createElement("div");row.className="paycheck-row";
+   row.innerHTML='<div class="paycheck-head"><div><div class="list-title">'+d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})+' paycheck'+(rsv.rentReserve?' · rent reserve':'')+(rsv.oneOff>0?' · one-off bills':'')+'</div><div class="paycheck-date">'+money(rsv.income)+' estimated take-home</div></div><div class="paycheck-payment">'+money(totalDebtPay)+' → debt</div></div>'+
+   '<div class="allocation-grid">'+
+   '<div class="allocation-cell"><div class="allocation-label">Bills'+(rsv.rentReserve?' + rent':'')+'</div><div class="allocation-value">'+money(rsv.bills)+'</div></div>'+
+   '<div class="allocation-cell"><div class="allocation-label">Day-to-day</div><div class="allocation-value">'+money(rsv.dayToDay)+'</div></div>'+
+   '<div class="allocation-cell"><div class="allocation-label">Friend debt</div><div class="allocation-value">'+money(friendPay)+'</div></div>'+
+   '<div class="allocation-cell"><div class="allocation-label">TD payment</div><div class="allocation-value">'+money(tdPay)+'</div></div>'+
+   '</div><div class="sub" style="margin-top:7px">Savings '+money(rsv.savings)+' · Extra cash buffer '+money(Number(state.settings?.paycheckBuffer||75))+' · TD after plan '+money(tdDebt)+' ('+afterUtil.toFixed(1)+'%) · Friend debt left '+money(friendRemain)+(friendDeadlineRisk?' · FRIEND DEADLINE MISSED':'')+(tdDeadlineRisk?' · TD DEADLINE MISSED':'')+'</div>';
+   wrap.appendChild(row);
+
+   if(friendRemain<=0&&afterUtil<targetPct)reached=true;
+ });
+
+ if(!reached){
+   const n=document.createElement("div");n.className="empty";n.textContent="Current income/cost assumptions do not reach both targets within the displayed paychecks. Reduce spending/buffer, increase income, or extend a deadline.";wrap.appendChild(n);
+ }
+}
 function renderPlan(){
  if(!$("planList")) return;
  renderPaycheckDebtPlan();
@@ -470,7 +529,7 @@ $("saveCategoryBtn").onclick=()=>{const name=$("categoryName").value.trim();if(!
 $("deleteCategoryBtn").onclick=()=>{const id=$("editCategoryId").value;if(!id)return;if(!confirm("Delete this category?"))return;state.categories=state.categories.filter(c=>c.id!==id);save();$("categoryModal").classList.add("hide")};
 document.querySelectorAll(".close-modal").forEach(b=>b.onclick=()=>b.closest(".modal-bg").classList.add("hide"));
 
-$("saveDebtStrategyBtn").onclick=()=>{const lump=Number($("lumpSumInput").value),cap=Number($("cardSpendCapInput").value),deadline=$("friendDeadlineInput").value,tdate=$("transferDateInput").value,received=$("transferReceivedInput").checked;if(!Number.isFinite(lump)||lump<0||!Number.isFinite(cap)||cap<0||!deadline||!tdate)return;state.settings=state.settings||{};state.settings.lumpSumAvailable=lump;state.settings.cardSpendCap=cap;state.settings.friendDebtDeadline=deadline;state.settings.transferDate=tdate;state.settings.transferReceived=received;save();};
+$("saveDebtStrategyBtn").onclick=()=>{const lump=Number($("lumpSumInput").value),cap=Number($("cardSpendCapInput").value),deadline=$("friendDeadlineInput").value,tdDeadline=$("tdDeadlineInput").value,tdate=$("transferDateInput").value,received=$("transferReceivedInput").checked,buffer=Number($("paycheckBufferInput").value);if(!Number.isFinite(lump)||lump<0||!Number.isFinite(cap)||cap<0||!Number.isFinite(buffer)||buffer<0||!deadline||!tdDeadline||!tdate)return;state.settings=state.settings||{};state.settings.lumpSumAvailable=lump;state.settings.cardSpendCap=cap;state.settings.friendDebtDeadline=deadline;state.settings.transferDate=tdate;state.settings.transferReceived=received;state.settings.paycheckBuffer=buffer;state.settings.tdTargetDeadline=tdDeadline;save();};
 $("saveBudgetAssumptionsBtn").onclick=()=>{
  const d=$("trackingStartInput").value,s=Number($("savingPerPayInput").value);
  if(!d||!Number.isFinite(s)||s<0)return;
