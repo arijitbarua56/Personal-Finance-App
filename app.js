@@ -379,7 +379,7 @@ function renderPaycheckDebtPlan(){
  const limit=Number(card.creditLimit),targetPct=Number(state.settings?.utilTarget??35),targetBal=limit*(targetPct/100);
  const balances=projectedDebtsBase();
  let lumpApplied=!!state.settings?.transferReceived;if(lumpApplied)applyLumpToBalances(balances);
- let tdDebt=Math.max(0,balances[card.id]??Number(card.balance)||0);
+ let tdDebt=Math.max(0,(balances[card.id] ?? Number(card.balance) ?? 0));
  const friendIds=friendDebts().map(a=>a.id);
  let friendRemain=friendIds.reduce((s,id)=>s+Math.max(0,balances[id]||0),0);
 

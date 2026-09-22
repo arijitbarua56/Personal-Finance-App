@@ -1,0 +1,1 @@
+Fixes the JavaScript syntax error that caused all buttons, login, sync, and dashboard rendering to stop in V5.12. Financial logic is otherwise unchanged.
